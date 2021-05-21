@@ -74,28 +74,26 @@ tag tag_parser(HINTERNET hRequest){
     DWORD ReadLength;
     string tag_name = ""; bool tag_flag = true;
     vector<string> info;
-    string key = "", value = ""; bool key_flag = true, value_flag = false;
+    string data = "";
     while(InternetReadFile(hRequest, tag_buf, sizeof(tag_buf), &ReadLength)){
+        if(tag_buf[0] == '>'){
+            info.push_back(data);
+            break;
+        }
         if(tag_flag){
             if(tag_buf[0] != ' ') tag_name += tag_buf[0];
             else tag_flag = false;
         }else{
-            if(key_flag){
-                if(tag_buf[0] != '=') key += tag_buf[0];
-                else{ key_flag = false; value_flag = true; }
-            }else if(value_flag){
-                if(tag_buf[0] != ' ' && tag_buf[0] != '>') value += tag_buf[0];
-                else{
-                    value_flag = false;
-                    value = value.substr(1, value.size() - 2);
-                    info.push_back(key);
-                    info.push_back(value);
-                    key = ""; value = "";
-                }
+            if(tag_buf[0] != '=' && tag_buf[0] != ' ') data += tag_buf[0];
+            else{
+                info.push_back(data);
+                data = "";
             }
         }
-        if(tag_buf[0] == '>') break;
     }
+    /*cout<<tag_name;
+    for(string data:info) cout<<" "<<data;
+    cout<<endl;*/
     return tag(tag_name, info);
 }
 void HTML_parser(HINTERNET hRequest, int parent_id){
@@ -105,19 +103,22 @@ void HTML_parser(HINTERNET hRequest, int parent_id){
     while(InternetReadFile(hRequest, html_buf, sizeof(html_buf), &ReadLength)){
         //LPWSTR pszWideChar = (LPWSTR)malloc(1025 * sizeof(WCHAR));
         //MultiByteToWideChar(CP_UTF8, 0, response_body_buf, -1, pszWideChar, 1025);
-        printf("%s", html_buf);
+        //printf("%s",html_buf);
         if(html_buf[0] == '<'){
-            int child_id = elements.size();
-            elements.push_back(tag());
-            elements[child_id] = tag_parser(hRequest);
-            element_child.push_back(vector<int>());
-            element_child[parent_id].push_back(child_id);
-            if(elements[child_id].tag_name[0] != '/'){
-                HTML_parser(hRequest, child_id);
+            tag t = tag_parser(hRequest);
+            if(t.tag_name[0] != '/'){
+                int child_id = elements.size();
+                elements.push_back(tag());
+                elements[child_id] = t;
+                element_child.push_back(vector<int>());
+                element_child[parent_id].push_back(child_id);
+                if(t.tag_name == "!DOCTYPE") continue;
+                else if(t.tag_name == "meta") continue;
+                else HTML_parser(hRequest, child_id);
             }else return;
         }else{
             if(elements.back().tag_name == "text"){
-                elements.back().info.push_back(html_buf);
+                elements.back().info[0] += html_buf[0];
             }else{
                 int child_id = elements.size();
                 elements.push_back(tag());
@@ -126,13 +127,23 @@ void HTML_parser(HINTERNET hRequest, int parent_id){
                 element_child[parent_id].push_back(child_id);
             }
         }
-        if(count--) break;
+        if(!count--) break;
     };
     InternetCloseHandle(hRequest);
+}
+void HTML_parser_test(int parent_id, int depth){
+    for(int child_id:element_child[parent_id]){
+        for(int i = 0; i < depth; i++) cout<<"    ";
+        cout<<elements[child_id].tag_name;
+        for(string data:elements[child_id].info) cout<<" "<<data;
+        cout<<endl;
+        HTML_parser_test(child_id, depth + 1);
+    }
 }
 int main(void){
     //char url[] = "https://www.google.com";
     char url[] = "https://ja.wikipedia.org/wiki/Uniform_Resource_Locator";
     HINTERNET hRequest = HttpRequest(url);
     HTML_parser(hRequest, 0);
+    HTML_parser_test(0, 0);
 }
