@@ -140,39 +140,51 @@ void HTML_parser_test(int parent_id, int depth){
         HTML_parser_test(child_id, depth + 1);
     }
 }
+LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
+    switch (uMsg) {
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            return 0;
+    }
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow){
-    /*HWND hwnd;
-	WNDCLASS winc;
+    /*char url[] = "https://ja.wikipedia.org/wiki/Uniform_Resource_Locator";
+    HINTERNET hRequest = HttpRequest(url);
+    HTML_parser(hRequest, 0);
+    HTML_parser_test(0, 0);*/
+    
+    HWND hwnd;
+	WNDCLASS wc;
 
-	winc.style = CS_HREDRAW | CS_VREDRAW;
-	winc.lpfnWndProc = DefWindowProc;
-	winc.cbClsExtra	= winc.cbWndExtra = 0;
-	winc.hInstance = hInstance;
-	winc.hIcon = LoadIcon(NULL , IDI_APPLICATION);
-	winc.hCursor = LoadCursor(NULL , IDC_ARROW);
-	winc.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
-	winc.lpszMenuName = NULL;
-	winc.lpszClassName = TEXT("KITTY");
+	wc.style = CS_HREDRAW | CS_VREDRAW;
+	wc.lpfnWndProc = WndProc;
+	wc.cbClsExtra = 0;
+    wc.cbWndExtra = 0;
+	wc.hInstance = hInstance;
+	wc.hIcon = LoadIcon(NULL , IDI_APPLICATION);
+	wc.hCursor = LoadCursor(NULL , IDC_ARROW);
+	wc.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
+	wc.lpszMenuName = NULL;
+	wc.lpszClassName = "test";
 
-	if (!RegisterClass(&winc)) return 0;
+	if (!RegisterClass(&wc)) return 0;
 
 	hwnd = CreateWindow(
-			TEXT("KITTY"), TEXT("Kitty on your lap"),
-			WS_OVERLAPPEDWINDOW,
-			100, 100, 200, 200, NULL, NULL,
-			hInstance, NULL
+        "test", TEXT("Title"),
+        WS_OVERLAPPEDWINDOW,
+        100, 100, 800, 600, NULL, NULL,
+        hInstance, NULL
 	);
 
 	if (hwnd == NULL) return 0;
 
-	ShowWindow(hwnd , SW_SHOW);*/
-    MessageBox(NULL, "", "", MB_OK);
-    return 0;
+	ShowWindow(hwnd, nCmdShow);
+    UpdateWindow(hwnd);
+    MSG msg;
+    while(GetMessage(&msg, NULL, 0, 0)){
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    return msg.wParam;
 }
-/*int main(void){
-    //char url[] = "https://www.google.com";
-    char url[] = "https://ja.wikipedia.org/wiki/Uniform_Resource_Locator";
-    HINTERNET hRequest = HttpRequest(url);
-    HTML_parser(hRequest, 0);
-    HTML_parser_test(0, 0);
-}*/
