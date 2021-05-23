@@ -140,13 +140,20 @@ void HTML_parser_test(int parent_id, int depth){
         HTML_parser_test(child_id, depth + 1);
     }
 }
-LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
-    switch (uMsg) {
+LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
+    switch (uMsg){
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;
+        case WM_COMMAND:
+            if(HIWORD(wParam) == BN_CLICKED){
+                HWND hEdt = FindWindowEx(hWnd, 0, "EDIT", NULL);
+                LPTSTR strText = (LPTSTR)calloc((GetWindowTextLength(hEdt) + 1), sizeof(TCHAR));
+                GetWindowText(hEdt, strText, (GetWindowTextLength(hEdt) + 1));
+                cout<<strText;
+            }
     }
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+    return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow){
     /*char url[] = "https://ja.wikipedia.org/wiki/Uniform_Resource_Locator";
@@ -154,7 +161,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     HTML_parser(hRequest, 0);
     HTML_parser_test(0, 0);*/
     
-    HWND hwnd;
+    HWND hWnd;
 	WNDCLASS wc;
 
 	wc.style = CS_HREDRAW | CS_VREDRAW;
@@ -170,17 +177,29 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	if (!RegisterClass(&wc)) return 0;
 
-	hwnd = CreateWindow(
+	hWnd = CreateWindow(
         "test", TEXT("Title"),
         WS_OVERLAPPEDWINDOW,
         100, 100, 800, 600, NULL, NULL,
         hInstance, NULL
 	);
+    HWND hEdt = CreateWindowEx(
+        0, "EDIT", "aaaa",
+		WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
+		0, 0, 400, 20,
+        hWnd, (HMENU)101, hInstance, NULL
+    );
+    HWND hBtn = CreateWindowEx(
+        0, "BUTTON", "run",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+		400, 0, 70, 20,
+		hWnd, NULL, hInstance, NULL
+    );
 
-	if (hwnd == NULL) return 0;
+	if (hWnd == NULL) return 0;
 
-	ShowWindow(hwnd, nCmdShow);
-    UpdateWindow(hwnd);
+	ShowWindow(hWnd, nCmdShow);
+    UpdateWindow(hWnd);
     MSG msg;
     while(GetMessage(&msg, NULL, 0, 0)){
         TranslateMessage(&msg);
