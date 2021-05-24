@@ -9,6 +9,8 @@ using namespace std;
 #include<wininet.h>
 
 //#pragma comment (lib, "wininet.lib")
+
+// HTTP communication
 HINTERNET HttpRequest(char* url_string){
     URL_COMPONENTS url_components;
     ZeroMemory(&url_components, sizeof(URL_COMPONENTS));
@@ -46,13 +48,19 @@ HINTERNET HttpRequest(char* url_string){
         HTTP_QUERY_CONTENT_TYPE | HTTP_QUERY_COOKIE | HTTP_QUERY_DATE,
         &query_info_buf, &query_info_buf_length, NULL
     );*/
-    HttpQueryInfo(hRequest, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, &query_info_buf, &query_info_buf_length, 0);
-    printf("%d\n",query_info_buf);
+    /*HttpQueryInfo(
+        hRequest,
+        HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER,
+        &query_info_buf, &query_info_buf_length, 0
+    );*/
+    //printf("%d\n",query_info_buf);
     //HttpQueryInfo(hRequest, HTTP_QUERY_STATUS_TEXT, &query_info_buf, &query_info_buf_length, 0);
     //printf("%s\n",query_info_buf);
     return hRequest;
 }
 
+
+// HTML parser
 struct tag{
     string tag_name;
     vector<string> info;
@@ -66,6 +74,7 @@ struct tag{
         this->info = info;
     }
 };
+
 vector<tag> elements(1);
 vector<vector<int>> element_child(1);
 
@@ -86,6 +95,7 @@ tag tag_parser(HINTERNET hRequest){
         }else{
             if(tag_buf[0] != '=' && tag_buf[0] != ' ') data += tag_buf[0];
             else{
+                if(data[0] == '\"' && data.back() == '\"') data = data.substr(1, data.size()-2);
                 info.push_back(data);
                 data = "";
             }
@@ -140,6 +150,42 @@ void HTML_parser_test(int parent_id, int depth){
         HTML_parser_test(child_id, depth + 1);
     }
 }
+
+// HTML Rendering Engine
+struct character{
+    int size;
+    int font;
+    int color;
+};
+void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id){
+    for(int child_id:element_child[parent_id]){
+        tag elm = elements[child_id];
+        string s = elm.tag_name;
+        if(s == "text"){
+                char str[elm.info[0].size()];
+                for(int i = 0; i < elm.info[0].size(); i++){
+                    str[i] = elm.info[0][i];
+                }
+                TextOut(hdc, 0, 20, str, strlen(str));
+        }else{
+            HTML_Rendering(hWnd, hdc, child_id);
+        }
+
+        /*
+        else if(s == "h1")
+        else if(s == "h2")
+        else if(s == "h3")
+        else if(s == "h4")
+        else if(s == "h5")
+        else if(s == "h6")
+
+        else if(s == "a")
+        else if(s == "br")
+        else if(s == "link")
+        else if(s == "p")*/
+    }
+}
+// window processing
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
     switch (uMsg){
         case WM_DESTROY:
@@ -147,21 +193,34 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
             return 0;
         case WM_COMMAND:
             if(HIWORD(wParam) == BN_CLICKED){
+                // take url
                 HWND hEdt = FindWindowEx(hWnd, 0, "EDIT", NULL);
-                LPTSTR strText = (LPTSTR)calloc((GetWindowTextLength(hEdt) + 1), sizeof(TCHAR));
-                GetWindowText(hEdt, strText, (GetWindowTextLength(hEdt) + 1));
-                cout<<strText;
+                LPTSTR url = (LPTSTR)calloc((GetWindowTextLength(hEdt) + 1), sizeof(TCHAR));
+                GetWindowText(hEdt, url, (GetWindowTextLength(hEdt) + 1));
+                printf(url);
+
+                // communication
+                HINTERNET hRequest = HttpRequest(url);
+                // https://ja.wikipedia.org/wiki/Uniform_Resource_Locator
+                HTML_parser(hRequest, 0);
+                //HTML_parser_test(0, 0);
+                HDC hdc = GetDC(hWnd);
+                HTML_Rendering(hWnd, hdc, 0);
+                ReleaseDC(hWnd, hdc);
             }
+            return 0;
+        /*case WM_PAINT:
+            TCHAR str[] = TEXT("hello world");
+            //HDC hdc = BeginPaint(hWnd, &ps);
+            HDC hdc = GetDC(hWnd);
+            TextOut(hdc, 100, 100, str, lstrlen(str));
+            //EndPaint(hWnd, &ps);
+            return 0;*/
     }
     return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow){
-    /*char url[] = "https://ja.wikipedia.org/wiki/Uniform_Resource_Locator";
-    HINTERNET hRequest = HttpRequest(url);
-    HTML_parser(hRequest, 0);
-    HTML_parser_test(0, 0);*/
-    
-    HWND hWnd;
+    // arrange components
 	WNDCLASS wc;
 
 	wc.style = CS_HREDRAW | CS_VREDRAW;
@@ -177,14 +236,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	if (!RegisterClass(&wc)) return 0;
 
-	hWnd = CreateWindow(
-        "test", TEXT("Title"),
+	HWND hWnd = CreateWindow(
+        "test", "Title",
         WS_OVERLAPPEDWINDOW,
         100, 100, 800, 600, NULL, NULL,
         hInstance, NULL
 	);
     HWND hEdt = CreateWindowEx(
-        0, "EDIT", "aaaa",
+        0, "EDIT", "",
 		WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
 		0, 0, 400, 20,
         hWnd, (HMENU)101, hInstance, NULL
@@ -198,8 +257,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	if (hWnd == NULL) return 0;
 
-	ShowWindow(hWnd, nCmdShow);
-    UpdateWindow(hWnd);
+    ShowWindow(hWnd, nCmdShow);
+
+    TCHAR str[] = TEXT("hello world");
+    HDC hdc = GetDC(hWnd);
+    TextOut(hdc, 100, 100, str, lstrlen(str));
+    ReleaseDC(hWnd, hdc);
+
+    //UpdateWindow(hWnd);
     MSG msg;
     while(GetMessage(&msg, NULL, 0, 0)){
         TranslateMessage(&msg);
