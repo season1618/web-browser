@@ -101,16 +101,18 @@ tag tag_parser(HINTERNET hRequest){
             }
         }
     }
-    /*cout<<tag_name;
+    cout<<tag_name;
     for(string data:info) cout<<" "<<data;
-    cout<<endl;*/
+    //cout<<endl;
     return tag(tag_name, info);
 }
 void HTML_parser(HINTERNET hRequest, int parent_id){
     char html_buf[1] = {0};
-    DWORD ReadLength;
-    int count = 1000;
-    while(InternetReadFile(hRequest, html_buf, sizeof(html_buf), &ReadLength)){
+    DWORD ReadLength = 1;
+    int count = 3000;
+    while(true){
+        InternetReadFile(hRequest, html_buf, sizeof(html_buf), &ReadLength);
+        if(ReadLength == 0) break;
         //LPWSTR pszWideChar = (LPWSTR)malloc(1025 * sizeof(WCHAR));
         //MultiByteToWideChar(CP_UTF8, 0, response_body_buf, -1, pszWideChar, 1025);
         //printf("%s",html_buf);
@@ -153,38 +155,69 @@ void HTML_parser_test(int parent_id, int depth){
 
 // HTML Rendering Engine
 struct character{
+    bool draw_flag;
     int size;
     int font;
     int color;
+    character(bool draw_flag){
+        this->draw_flag = draw_flag;
+    }
 };
-void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id){
+void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, character pro){
     for(int child_id:element_child[parent_id]){
         tag elm = elements[child_id];
         string s = elm.tag_name;
         if(s == "text"){
+            if(pro.draw_flag){
                 char str[elm.info[0].size()];
                 for(int i = 0; i < elm.info[0].size(); i++){
                     str[i] = elm.info[0][i];
                 }
                 TextOut(hdc, 0, 20, str, strlen(str));
-        }else{
-            HTML_Rendering(hWnd, hdc, child_id);
+            }
         }
 
-        /*
-        else if(s == "h1")
-        else if(s == "h2")
-        else if(s == "h3")
-        else if(s == "h4")
-        else if(s == "h5")
-        else if(s == "h6")
+        else if(s == "title"){
+            HTML_Rendering(hWnd, hdc, child_id, character(true));
+        }
+        else if(s == "h1"){
+            HTML_Rendering(hWnd, hdc, child_id, character(true));
+        }
+        else if(s == "h2"){
+            HTML_Rendering(hWnd, hdc, child_id, character(true));
+        }
+        else if(s == "h3"){
+            HTML_Rendering(hWnd, hdc, child_id, character(true));
+        }
+        else if(s == "h4"){
+            HTML_Rendering(hWnd, hdc, child_id, character(true));
+        }
+        else if(s == "h5"){
+            HTML_Rendering(hWnd, hdc, child_id, character(true));
+        }
+        else if(s == "h6"){
+            HTML_Rendering(hWnd, hdc, child_id, character(true));
+        }
 
-        else if(s == "a")
-        else if(s == "br")
-        else if(s == "link")
-        else if(s == "p")*/
+        else if(s == "a"){
+            HTML_Rendering(hWnd, hdc, child_id, character(true));
+        }
+        else if(s == "br"){
+            HTML_Rendering(hWnd, hdc, child_id, character(true));
+        }
+        else if(s == "link"){
+            HTML_Rendering(hWnd, hdc, child_id, character(true));
+        }
+        else if(s == "p"){
+            HTML_Rendering(hWnd, hdc, child_id, character(true));
+        }
+        
+        else{
+            HTML_Rendering(hWnd, hdc, child_id, character(false));
+        }
     }
 }
+
 // window processing
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
     switch (uMsg){
@@ -197,16 +230,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
                 HWND hEdt = FindWindowEx(hWnd, 0, "EDIT", NULL);
                 LPTSTR url = (LPTSTR)calloc((GetWindowTextLength(hEdt) + 1), sizeof(TCHAR));
                 GetWindowText(hEdt, url, (GetWindowTextLength(hEdt) + 1));
-                printf(url);
+                printf("%s\n",url);
 
                 // communication
                 HINTERNET hRequest = HttpRequest(url);
                 // https://ja.wikipedia.org/wiki/Uniform_Resource_Locator
                 HTML_parser(hRequest, 0);
                 //HTML_parser_test(0, 0);
-                HDC hdc = GetDC(hWnd);
-                HTML_Rendering(hWnd, hdc, 0);
-                ReleaseDC(hWnd, hdc);
+                //HDC hdc = GetDC(hWnd);
+                //HTML_Rendering(hWnd, hdc, 0, character(true));
+                //ReleaseDC(hWnd, hdc);
             }
             return 0;
         /*case WM_PAINT:
