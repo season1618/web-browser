@@ -249,13 +249,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
                 ReleaseDC(hWnd, hdc);
             }
             return 0;
-        /*case WM_PAINT:
-            TCHAR str[] = TEXT("hello world");
-            //HDC hdc = BeginPaint(hWnd, &ps);
-            HDC hdc = GetDC(hWnd);
-            TextOut(hdc, 100, 100, str, lstrlen(str));
-            //EndPaint(hWnd, &ps);
-            return 0;*/
+        case WM_PAINT:
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hWnd, &ps);
+            HTML_Rendering(hWnd, hdc, 0, character(true));
+            EndPaint(hWnd, &ps);
+            return 0;
     }
     return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
