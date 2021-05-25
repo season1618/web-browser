@@ -11,7 +11,7 @@ using namespace std;
 //#pragma comment (lib, "wininet.lib")
 
 // HTTP communication
-HINTERNET HttpRequest(char* url_string){
+void HttpRequest(HINTERNET *hInternet_p, HINTERNET *hConnect_p, HINTERNET *hRequest_p, char* url_string){
     URL_COMPONENTS url_components;
     ZeroMemory(&url_components, sizeof(URL_COMPONENTS));
     url_components.dwStructSize = sizeof(URL_COMPONENTS);
@@ -28,13 +28,16 @@ HINTERNET HttpRequest(char* url_string){
     /*printf("%s\n",url_components.lpszHostName);
     printf("%d\n",url_components.nPort);
     printf("%s\n",url_components.lpszUrlPath);*/
-    HINTERNET hInternet = InternetOpen(NULL, INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
-    HINTERNET hConnect = InternetConnect(hInternet, url_components.lpszHostName, INTERNET_DEFAULT_HTTP_PORT, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
-    HINTERNET hRequest = HttpOpenRequest(hConnect, "GET", url_components.lpszUrlPath, "HTTP/1.1", NULL, NULL, INTERNET_FLAG_RELOAD, 0);
+    *hInternet_p = InternetOpen(NULL, INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+    *hConnect_p = InternetConnect(*hInternet_p, url_components.lpszHostName, INTERNET_DEFAULT_HTTP_PORT, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
+    *hRequest_p = HttpOpenRequest(*hConnect_p, "GET", url_components.lpszUrlPath, "HTTP/1.1", NULL, NULL, INTERNET_FLAG_RELOAD, 0);
+    //HINTERNET hInternet = InternetOpen(NULL, INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+    //HINTERNET hConnect = InternetConnect(hInternet, url_components.lpszHostName, INTERNET_DEFAULT_HTTP_PORT, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
+    //HINTERNET hRequest = HttpOpenRequest(hConnect, "GET", url_components.lpszUrlPath, "HTTP/1.1", NULL, NULL, INTERNET_FLAG_RELOAD, 0);
     char header[10];//"Content-Type: application/x-www-form-urlencoded; charset=utf-8";
     char optional[10];//"a=1234&b=5678";
     //BOOL r = HttpSendRequest(hRequest, header, strlen(header), (LPVOID)data, strlen(data));
-    if(!HttpSendRequest(hRequest, NULL, 0, NULL, 0)){
+    if(!HttpSendRequest(*hRequest_p, NULL, 0, NULL, 0)){
         printf("failed to send a request\n");
         printf("Error Code : %d\n",GetLastError());
         printf(url_string);
@@ -56,7 +59,7 @@ HINTERNET HttpRequest(char* url_string){
     //printf("%d\n",query_info_buf);
     //HttpQueryInfo(hRequest, HTTP_QUERY_STATUS_TEXT, &query_info_buf, &query_info_buf_length, 0);
     //printf("%s\n",query_info_buf);
-    return hRequest;
+    //return hRequest;
 }
 
 
@@ -101,9 +104,9 @@ tag tag_parser(HINTERNET hRequest){
             }
         }
     }
-    cout<<tag_name;
+    /*cout<<tag_name;
     for(string data:info) cout<<" "<<data;
-    //cout<<endl;
+    cout<<endl;*/
     return tag(tag_name, info);
 }
 void HTML_parser(HINTERNET hRequest, int parent_id){
@@ -141,7 +144,7 @@ void HTML_parser(HINTERNET hRequest, int parent_id){
         }
         if(!count--) break;
     };
-    InternetCloseHandle(hRequest);
+    //InternetCloseHandle(hRequest);
 }
 void HTML_parser_test(int parent_id, int depth){
     for(int child_id:element_child[parent_id]){
@@ -152,6 +155,7 @@ void HTML_parser_test(int parent_id, int depth){
         HTML_parser_test(child_id, depth + 1);
     }
 }
+
 
 // HTML Rendering Engine
 struct character{
@@ -218,6 +222,7 @@ void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, character pro){
     }
 }
 
+
 // window processing
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
     switch (uMsg){
@@ -230,16 +235,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
                 HWND hEdt = FindWindowEx(hWnd, 0, "EDIT", NULL);
                 LPTSTR url = (LPTSTR)calloc((GetWindowTextLength(hEdt) + 1), sizeof(TCHAR));
                 GetWindowText(hEdt, url, (GetWindowTextLength(hEdt) + 1));
-                printf("%s\n",url);
+                //printf("%s\n",url);
 
                 // communication
-                HINTERNET hRequest = HttpRequest(url);
+                HINTERNET hInternet, hConnect, hRequest;
+                HttpRequest(&hInternet, &hConnect, &hRequest, url);
                 // https://ja.wikipedia.org/wiki/Uniform_Resource_Locator
                 HTML_parser(hRequest, 0);
+                InternetCloseHandle(hInternet);
                 //HTML_parser_test(0, 0);
-                //HDC hdc = GetDC(hWnd);
-                //HTML_Rendering(hWnd, hdc, 0, character(true));
-                //ReleaseDC(hWnd, hdc);
+                HDC hdc = GetDC(hWnd);
+                HTML_Rendering(hWnd, hdc, 0, character(true));
+                ReleaseDC(hWnd, hdc);
             }
             return 0;
         /*case WM_PAINT:
