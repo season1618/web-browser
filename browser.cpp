@@ -106,13 +106,13 @@ tag tag_parser(HINTERNET hRequest){
     }
     /*cout<<tag_name;
     for(string data:info) cout<<" "<<data;
-    cout<<endl;*/
+    //cout<<endl;*/
     return tag(tag_name, info);
 }
 void HTML_parser(HINTERNET hRequest, int parent_id){
     char html_buf[1] = {0};
     DWORD ReadLength = 1;
-    int count = 3000;
+    int count = 1100;
     while(true){
         InternetReadFile(hRequest, html_buf, sizeof(html_buf), &ReadLength);
         if(ReadLength == 0) break;
@@ -150,7 +150,7 @@ void HTML_parser_test(int parent_id, int depth){
     for(int child_id:element_child[parent_id]){
         for(int i = 0; i < depth; i++) cout<<"    ";
         cout<<elements[child_id].tag_name;
-        for(string data:elements[child_id].info) cout<<" "<<data;
+        //for(string data:elements[child_id].info) cout<<" "<<data;
         cout<<endl;
         HTML_parser_test(child_id, depth + 1);
     }
@@ -161,63 +161,87 @@ void HTML_parser_test(int parent_id, int depth){
 struct character{
     bool draw_flag;
     int size;
-    int font;
+    string font;
     int color;
+    character(){}
     character(bool draw_flag){
         this->draw_flag = draw_flag;
     }
 };
-void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, character pro){
+struct position{
+    int height, width;
+    position(int width, int height){
+        this->height = height;
+        this->width = width;
+    }
+};
+void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, position *pos_p){
+    tag parent_tag = elements[parent_id];
+    string s = parent_tag.tag_name;
     for(int child_id:element_child[parent_id]){
-        tag elm = elements[child_id];
-        string s = elm.tag_name;
-        if(s == "text"){
-            if(pro.draw_flag){
-                char str[elm.info[0].size()];
-                for(int i = 0; i < elm.info[0].size(); i++){
-                    str[i] = elm.info[0][i];
-                }
-                TextOut(hdc, 0, 20, str, strlen(str));
+        tag child_tag = elements[child_id];
+        if(child_tag.tag_name == "text"){
+            character pro;
+            if(s == "title"){
+                pro.size = 10;
             }
-        }
+            /*else if(s == "h1"){
+                HTML_Rendering(hWnd, hdc, child_id, character(true));
+            }
+            else if(s == "h2"){
+                HTML_Rendering(hWnd, hdc, child_id, character(true));
+            }
+            else if(s == "h3"){
+                HTML_Rendering(hWnd, hdc, child_id, character(true));
+            }
+            else if(s == "h4"){
+                HTML_Rendering(hWnd, hdc, child_id, character(true));
+            }
+            else if(s == "h5"){
+                HTML_Rendering(hWnd, hdc, child_id, character(true));
+            }
+            else if(s == "h6"){
+                HTML_Rendering(hWnd, hdc, child_id, character(true));
+            }
 
-        else if(s == "title"){
-            HTML_Rendering(hWnd, hdc, child_id, character(true));
-        }
-        else if(s == "h1"){
-            HTML_Rendering(hWnd, hdc, child_id, character(true));
-        }
-        else if(s == "h2"){
-            HTML_Rendering(hWnd, hdc, child_id, character(true));
-        }
-        else if(s == "h3"){
-            HTML_Rendering(hWnd, hdc, child_id, character(true));
-        }
-        else if(s == "h4"){
-            HTML_Rendering(hWnd, hdc, child_id, character(true));
-        }
-        else if(s == "h5"){
-            HTML_Rendering(hWnd, hdc, child_id, character(true));
-        }
-        else if(s == "h6"){
-            HTML_Rendering(hWnd, hdc, child_id, character(true));
-        }
-
-        else if(s == "a"){
-            HTML_Rendering(hWnd, hdc, child_id, character(true));
-        }
-        else if(s == "br"){
-            HTML_Rendering(hWnd, hdc, child_id, character(true));
-        }
-        else if(s == "link"){
-            HTML_Rendering(hWnd, hdc, child_id, character(true));
-        }
-        else if(s == "p"){
-            HTML_Rendering(hWnd, hdc, child_id, character(true));
-        }
-        
-        else{
-            HTML_Rendering(hWnd, hdc, child_id, character(false));
+            else if(s == "a"){
+                HTML_Rendering(hWnd, hdc, child_id, character(true));
+            }
+            else if(s == "br"){
+                HTML_Rendering(hWnd, hdc, child_id, character(true));
+            }
+            else if(s == "link"){
+                HTML_Rendering(hWnd, hdc, child_id, character(true));
+            }
+            else if(s == "p"){
+                HTML_Rendering(hWnd, hdc, child_id, character(true));
+            }*/
+            else{
+                continue;
+            }
+            
+                /*char text[elm.info[0].size()];
+                for(int i = 0; i < elm.info[0].size(); i++){
+                    text[i] = elm.info[0][i];
+                }
+                TextOut(hdc, 0, 20, str, strlen(str));*/
+            RECT rect;
+            GetWindowRect(hWnd, &rect);
+            int window_width = rect.right - rect.left;
+            string text = child_tag.info[0];
+            cout<<text<<endl;
+            cout<<pos_p->height<<" "<<pos_p->width<<endl;
+            for(int i = 0; i < text.size(); i++){
+                if(pos_p->width + pro.size > window_width){
+                    pos_p->height += pro.size;
+                    pos_p->width = 0;
+                }
+                char ch[1]; ch[0] = text[i];
+                TextOut(hdc, pos_p->width, pos_p->height, ch, 1);
+                pos_p->width += pro.size;
+            }
+        }else{
+            HTML_Rendering(hWnd, hdc, child_id, pos_p);
         }
     }
 }
@@ -245,14 +269,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
                 InternetCloseHandle(hInternet);
                 //HTML_parser_test(0, 0);
                 HDC hdc = GetDC(hWnd);
-                HTML_Rendering(hWnd, hdc, 0, character(true));
+                position pos(0, 20);
+                HTML_Rendering(hWnd, hdc, 0, &pos);
                 ReleaseDC(hWnd, hdc);
             }
             return 0;
         case WM_PAINT:
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
-            HTML_Rendering(hWnd, hdc, 0, character(true));
+            position pos(0, 20);
+            HTML_Rendering(hWnd, hdc, 0, &pos);
             EndPaint(hWnd, &ps);
             return 0;
     }
@@ -294,7 +320,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		hWnd, NULL, hInstance, NULL
     );
 
-	if (hWnd == NULL) return 0;
+	if(hWnd == NULL) return 0;
 
     ShowWindow(hWnd, nCmdShow);
 
