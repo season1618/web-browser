@@ -31,9 +31,6 @@ void HttpRequest(HINTERNET *hInternet_p, HINTERNET *hConnect_p, HINTERNET *hRequ
     *hInternet_p = InternetOpen(NULL, INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
     *hConnect_p = InternetConnect(*hInternet_p, url_components.lpszHostName, INTERNET_DEFAULT_HTTP_PORT, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
     *hRequest_p = HttpOpenRequest(*hConnect_p, "GET", url_components.lpszUrlPath, "HTTP/1.1", NULL, NULL, INTERNET_FLAG_RELOAD, 0);
-    //HINTERNET hInternet = InternetOpen(NULL, INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
-    //HINTERNET hConnect = InternetConnect(hInternet, url_components.lpszHostName, INTERNET_DEFAULT_HTTP_PORT, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
-    //HINTERNET hRequest = HttpOpenRequest(hConnect, "GET", url_components.lpszUrlPath, "HTTP/1.1", NULL, NULL, INTERNET_FLAG_RELOAD, 0);
     char header[10];//"Content-Type: application/x-www-form-urlencoded; charset=utf-8";
     char optional[10];//"a=1234&b=5678";
     //BOOL r = HttpSendRequest(hRequest, header, strlen(header), (LPVOID)data, strlen(data));
@@ -59,7 +56,6 @@ void HttpRequest(HINTERNET *hInternet_p, HINTERNET *hConnect_p, HINTERNET *hRequ
     //printf("%d\n",query_info_buf);
     //HttpQueryInfo(hRequest, HTTP_QUERY_STATUS_TEXT, &query_info_buf, &query_info_buf_length, 0);
     //printf("%s\n",query_info_buf);
-    //return hRequest;
 }
 
 
@@ -115,10 +111,26 @@ void HTML_parser(HINTERNET hRequest, int parent_id){
     int count = 1100;
     while(true){
         InternetReadFile(hRequest, html_buf, sizeof(html_buf), &ReadLength);
+        /*char utf8[1000] = {0};
+        DWORD ReadLength = 1000;
+        InternetReadFile(hRequest, utf8, sizeof(utf8), &ReadLength);
+        WCHAR utf16[1000] = {};
+        MultiByteToWideChar(CP_UTF8, 0, utf8, -1, utf16, sizeof(utf16) / sizeof(TCHAR));
+        char sjis[1000] = {};
+        WideCharToMultiByte(932, 0, utf16, -1, sjis, sizeof(sjis), NULL, NULL);
+        printf(TEXT("%s\n"), sjis);
+        for(int i = 0; i < 1000; i++){
+            printf("%x ",utf8[i]);
+        }cout<<endl;
+        for(int i = 0; i < 1000; i++){
+            printf("%x ",utf16[i]);
+        }cout<<endl;
+        for(int i = 0; i < 1000; i++){
+            printf("%x ",sjis[i]);
+        }cout<<endl;*/
         if(ReadLength == 0) break;
         //LPWSTR pszWideChar = (LPWSTR)malloc(1025 * sizeof(WCHAR));
         //MultiByteToWideChar(CP_UTF8, 0, response_body_buf, -1, pszWideChar, 1025);
-        //printf("%s",html_buf);
         if(html_buf[0] == '<'){
             tag t = tag_parser(hRequest);
             if(t.tag_name[0] != '/'){
@@ -159,14 +171,12 @@ void HTML_parser_test(int parent_id, int depth){
 
 // HTML Rendering Engine
 struct character{
-    bool draw_flag;
-    int size;
+    int height;
+    int width;
     string font;
     int color;
+    bool indention = false;
     character(){}
-    character(bool draw_flag){
-        this->draw_flag = draw_flag;
-    }
 };
 struct position{
     int height, width;
@@ -183,28 +193,42 @@ void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, position *pos_p){
         if(child_tag.tag_name == "text"){
             character pro;
             if(s == "title"){
-                pro.size = 10;
+                pro.height = 20;
+                pro.width = 10;
+                pro.indention = true;
             }
-            /*else if(s == "h1"){
-                HTML_Rendering(hWnd, hdc, child_id, character(true));
+            else if(s == "h1"){
+                pro.height = 48;
+                pro.width = 24;
+                pro.indention = true;
             }
             else if(s == "h2"){
-                HTML_Rendering(hWnd, hdc, child_id, character(true));
+                pro.height = 36;
+                pro.width = 18;
+                pro.indention = true;
             }
             else if(s == "h3"){
-                HTML_Rendering(hWnd, hdc, child_id, character(true));
+                pro.height = 24;
+                pro.width = 12;
+                pro.indention = true;
             }
             else if(s == "h4"){
-                HTML_Rendering(hWnd, hdc, child_id, character(true));
+                pro.height = 16;
+                pro.width = 8;
+                pro.indention = true;
             }
             else if(s == "h5"){
-                HTML_Rendering(hWnd, hdc, child_id, character(true));
+                pro.height = 16;
+                pro.width = 8;
+                pro.indention = true;
             }
             else if(s == "h6"){
-                HTML_Rendering(hWnd, hdc, child_id, character(true));
+                pro.height = 16;
+                pro.width = 8;
+                pro.indention = true;
             }
 
-            else if(s == "a"){
+            /*else if(s == "a"){
                 HTML_Rendering(hWnd, hdc, child_id, character(true));
             }
             else if(s == "br"){
@@ -227,19 +251,64 @@ void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, position *pos_p){
                 TextOut(hdc, 0, 20, str, strlen(str));*/
             RECT rect;
             GetWindowRect(hWnd, &rect);
-            int window_width = rect.right - rect.left;
-            string text = child_tag.info[0];
-            cout<<text<<endl;
-            cout<<pos_p->height<<" "<<pos_p->width<<endl;
-            for(int i = 0; i < text.size(); i++){
+            HFONT hFont = CreateFont(
+                pro.height, 0, // size
+                0, 0,
+                FW_NORMAL, // bold
+                FALSE, // italic
+                FALSE, FALSE,
+                SHIFTJIS_CHARSET,
+                OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, "Arial"
+            );
+            int window_width = rect.right - rect.left;        
+            int text_length = child_tag.info[0].size();
+            char text_utf8[text_length + 1] = {};
+            WCHAR text_utf16[text_length + 1] = {}; char text_sjis[text_length + 1] = {};
+            for(int i = 0; i < child_tag.info[0].size(); i++){
+                text_utf8[i] = child_tag.info[0][i];
+            }
+            MultiByteToWideChar(CP_UTF8, 0, text_utf8, -1, text_utf16, sizeof(text_utf16) / sizeof(TCHAR));
+            WideCharToMultiByte(932, 0, text_utf16, -1, text_sjis, sizeof(text_sjis), NULL, NULL);
+            //printf(TEXT("%s\n"), text_sjis);
+            for(int i = 0; i < text_length;){
+                int code = 0;
+                int length = 0;
+                for(int j = 0; i + j < text_length; j++){
+                    (code *= 256) += text_sjis[i+j] % 256;
+                    if(text_sjis[i+j] < 0x100 || text_sjis[i+j+1] < 0x100){
+                        length += pro.width;
+                        if(length + pro.width > window_width || i + j == text_length - 1){
+                            SelectObject(hdc, hFont);
+                            TextOut(hdc, 0, pos_p->height, text_sjis + i, j + 1);
+                            pos_p->height += pro.height;
+                            i += j + 1;
+                            break;
+                        }
+                        code = 0;
+                    }
+                }
+            }
+            cout<<s; printf(" %s\n",text_sjis);
+            for(int i = 0; i < child_tag.info[0].size(); i++){
+                printf("%c %x ",text_sjis[i], (long)text_sjis[i]);
+            }cout<<endl;
+            //TextOut(hdc, 0, 20, text, 100);
+            //cout<<text<<endl;
+            //cout<<pos_p->height<<" "<<pos_p->width<<endl;
+            /*for(int i = 0; i < text.size(); i++){
                 if(pos_p->width + pro.size > window_width){
                     pos_p->height += pro.size;
                     pos_p->width = 0;
                 }
                 char ch[1]; ch[0] = text[i];
                 TextOut(hdc, pos_p->width, pos_p->height, ch, 1);
+                //SelectObject(hdc, hFont);
                 pos_p->width += pro.size;
             }
+            if(pro.indention){
+                pos_p->height += pro.size;
+                pos_p->width = 0;
+            }*/
         }else{
             HTML_Rendering(hWnd, hdc, child_id, pos_p);
         }
@@ -265,6 +334,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
                 HINTERNET hInternet, hConnect, hRequest;
                 HttpRequest(&hInternet, &hConnect, &hRequest, url);
                 // https://ja.wikipedia.org/wiki/Uniform_Resource_Locator
+                
+                /*int count = 1000;
+                while(true){
+                    InternetReadFile(hRequest, html_buf, sizeof(html_buf), &ReadLength);
+                    //cout<<(wchar_t)html_buf[0];
+                    printf("%x ",html_buf[0]);
+                    if(!count--) break;
+                }*/
                 HTML_parser(hRequest, 0);
                 InternetCloseHandle(hInternet);
                 //HTML_parser_test(0, 0);
