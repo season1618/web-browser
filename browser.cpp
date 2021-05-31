@@ -61,26 +61,26 @@ void HttpRequest(HINTERNET *hInternet_p, HINTERNET *hConnect_p, HINTERNET *hRequ
 
 // HTML parser
 struct tag{
-    string tag_name;
+    string name;
     vector<string> info;
     vector<int> tag_id;
     tag(){}
-    tag(string tag_name){
-        this->tag_name = tag_name;
+    tag(string name){
+        this->name = name;
     }
-    tag(string tag_name, vector<string> info){
-        this->tag_name = tag_name;
+    tag(string name, vector<string> info){
+        this->name = name;
         this->info = info;
     }
 };
 
 vector<tag> elements(1);
-vector<vector<int>> element_child(1);
+vector<vector<int>> element_tree(1);
 
 tag tag_parser(HINTERNET hRequest){
     char tag_buf[1] = {0};
     DWORD ReadLength;
-    string tag_name = ""; bool tag_flag = true;
+    string name = ""; bool tag_flag = true;
     vector<string> info;
     string data = "";
     while(InternetReadFile(hRequest, tag_buf, sizeof(tag_buf), &ReadLength)){
@@ -89,7 +89,7 @@ tag tag_parser(HINTERNET hRequest){
             break;
         }
         if(tag_flag){
-            if(tag_buf[0] != ' ') tag_name += tag_buf[0];
+            if(tag_buf[0] != ' ') name += tag_buf[0];
             else tag_flag = false;
         }else{
             if(tag_buf[0] != '=' && tag_buf[0] != ' ') data += tag_buf[0];
@@ -100,10 +100,10 @@ tag tag_parser(HINTERNET hRequest){
             }
         }
     }
-    /*cout<<tag_name;
+    /*cout<<name;
     for(string data:info) cout<<" "<<data;
     //cout<<endl;*/
-    return tag(tag_name, info);
+    return tag(name, info);
 }
 void HTML_parser(HINTERNET hRequest, int parent_id){
     char html_buf[1] = {0};
@@ -133,25 +133,25 @@ void HTML_parser(HINTERNET hRequest, int parent_id){
         //MultiByteToWideChar(CP_UTF8, 0, response_body_buf, -1, pszWideChar, 1025);
         if(html_buf[0] == '<'){
             tag t = tag_parser(hRequest);
-            if(t.tag_name[0] != '/'){
+            if(t.name[0] != '/'){
                 int child_id = elements.size();
                 elements.push_back(tag());
                 elements[child_id] = t;
-                element_child.push_back(vector<int>());
-                element_child[parent_id].push_back(child_id);
-                if(t.tag_name == "!DOCTYPE") continue;
-                else if(t.tag_name == "meta") continue;
+                element_tree.push_back(vector<int>());
+                element_tree[parent_id].push_back(child_id);
+                if(t.name == "!DOCTYPE") continue;
+                else if(t.name == "meta") continue;
                 else HTML_parser(hRequest, child_id);
             }else return;
         }else{
-            if(elements.back().tag_name == "text"){
+            if(elements.back().name == "text"){
                 elements.back().info[0] += html_buf[0];
             }else{
                 int child_id = elements.size();
                 elements.push_back(tag());
                 elements[child_id] = tag("text", vector<string>({string({html_buf[0]})}));
-                element_child.push_back(vector<int>());
-                element_child[parent_id].push_back(child_id);
+                element_tree.push_back(vector<int>());
+                element_tree[parent_id].push_back(child_id);
             }
         }
         if(!count--) break;
@@ -159,9 +159,9 @@ void HTML_parser(HINTERNET hRequest, int parent_id){
     //InternetCloseHandle(hRequest);
 }
 void HTML_parser_test(int parent_id, int depth){
-    for(int child_id:element_child[parent_id]){
+    for(int child_id:element_tree[parent_id]){
         for(int i = 0; i < depth; i++) cout<<"    ";
-        cout<<elements[child_id].tag_name;
+        cout<<elements[child_id].name;
         //for(string data:elements[child_id].info) cout<<" "<<data;
         cout<<endl;
         HTML_parser_test(child_id, depth + 1);
@@ -175,7 +175,7 @@ struct character{
     int width;
     string font;
     int color;
-    bool indention = false;
+    bool indention = 0;
     character(){}
 };
 struct position{
@@ -185,133 +185,129 @@ struct position{
         this->width = width;
     }
 };
-void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, position *pos_p){
+void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, character pro, position *pos_p){
     tag parent_tag = elements[parent_id];
-    string s = parent_tag.tag_name;
-    for(int child_id:element_child[parent_id]){
-        tag child_tag = elements[child_id];
-        if(child_tag.tag_name == "text"){
-            character pro;
-            if(s == "title"){
-                pro.height = 20;
-                pro.width = 10;
-                pro.indention = true;
-            }
-            else if(s == "h1"){
-                pro.height = 48;
-                pro.width = 24;
-                pro.indention = true;
-            }
-            else if(s == "h2"){
-                pro.height = 36;
-                pro.width = 18;
-                pro.indention = true;
-            }
-            else if(s == "h3"){
-                pro.height = 24;
-                pro.width = 12;
-                pro.indention = true;
-            }
-            else if(s == "h4"){
-                pro.height = 16;
-                pro.width = 8;
-                pro.indention = true;
-            }
-            else if(s == "h5"){
-                pro.height = 16;
-                pro.width = 8;
-                pro.indention = true;
-            }
-            else if(s == "h6"){
-                pro.height = 16;
-                pro.width = 8;
-                pro.indention = true;
-            }
-
-            /*else if(s == "a"){
-                HTML_Rendering(hWnd, hdc, child_id, character(true));
-            }
-            else if(s == "br"){
-                HTML_Rendering(hWnd, hdc, child_id, character(true));
-            }
-            else if(s == "link"){
-                HTML_Rendering(hWnd, hdc, child_id, character(true));
-            }
-            else if(s == "p"){
-                HTML_Rendering(hWnd, hdc, child_id, character(true));
-            }*/
-            else{
-                continue;
-            }
-            
-                /*char text[elm.info[0].size()];
-                for(int i = 0; i < elm.info[0].size(); i++){
-                    text[i] = elm.info[0][i];
-                }
-                TextOut(hdc, 0, 20, str, strlen(str));*/
-            RECT rect;
-            GetWindowRect(hWnd, &rect);
-            HFONT hFont = CreateFont(
-                pro.height, 0, // size
-                0, 0,
-                FW_NORMAL, // bold
-                FALSE, // italic
-                FALSE, FALSE,
-                SHIFTJIS_CHARSET,
-                OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, "Arial"
-            );
-            int window_width = rect.right - rect.left;        
-            int text_length = child_tag.info[0].size();
-            char text_utf8[text_length + 1] = {};
-            WCHAR text_utf16[text_length + 1] = {}; char text_sjis[text_length + 1] = {};
-            for(int i = 0; i < child_tag.info[0].size(); i++){
-                text_utf8[i] = child_tag.info[0][i];
-            }
-            MultiByteToWideChar(CP_UTF8, 0, text_utf8, -1, text_utf16, sizeof(text_utf16) / sizeof(TCHAR));
-            WideCharToMultiByte(932, 0, text_utf16, -1, text_sjis, sizeof(text_sjis), NULL, NULL);
-            //printf(TEXT("%s\n"), text_sjis);
-            for(int i = 0; i < text_length;){
-                int code = 0;
-                int length = 0;
-                for(int j = 0; i + j < text_length; j++){
-                    (code *= 256) += text_sjis[i+j] % 256;
-                    if(text_sjis[i+j] < 0x100 || text_sjis[i+j+1] < 0x100){
-                        length += pro.width;
-                        if(length + pro.width > window_width || i + j == text_length - 1){
-                            SelectObject(hdc, hFont);
-                            TextOut(hdc, 0, pos_p->height, text_sjis + i, j + 1);
-                            pos_p->height += pro.height;
-                            i += j + 1;
-                            break;
-                        }
-                        code = 0;
+    if(parent_tag.name == "text"){
+        RECT rect;
+        GetWindowRect(hWnd, &rect);
+        HFONT hFont = CreateFont(
+            pro.height, 0, // size
+            0, 0,
+            FW_NORMAL, // bold
+            FALSE, // italic
+            FALSE, FALSE,
+            SHIFTJIS_CHARSET,
+            OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, "Arial"
+        );
+        int window_width = rect.right - rect.left;        
+        int text_length = parent_tag.info[0].size();
+        char text_utf8[text_length + 1] = {};
+        WCHAR text_utf16[text_length + 1] = {}; char text_sjis[text_length + 1] = {};
+        for(int i = 0; i < text_length; i++){
+            text_utf8[i] = parent_tag.info[0][i];
+        }
+        MultiByteToWideChar(CP_UTF8, 0, text_utf8, -1, text_utf16, sizeof(text_utf16) / sizeof(TCHAR));
+        WideCharToMultiByte(932, 0, text_utf16, -1, text_sjis, sizeof(text_sjis), NULL, NULL);
+        //printf(TEXT("%s\n"), text_sjis);
+        for(int i = 0; i < text_length;){
+            int code = 0;
+            int length = 0;
+            for(int j = 0; i + j < text_length; j++){
+                (code *= 256) += text_sjis[i+j] % 256;
+                if(text_sjis[i+j] < 0x100 || text_sjis[i+j+1] < 0x100){
+                    length += pro.width;
+                    if(length + pro.width > window_width || i + j == text_length - 1){
+                        SelectObject(hdc, hFont);
+                        TextOut(hdc, 0, pos_p->height, text_sjis + i, j + 1);
+                        pos_p->height += pro.height;
+                        i += j + 1;
+                        break;
                     }
+                    code = 0;
                 }
             }
-            cout<<s; printf(" %s\n",text_sjis);
-            for(int i = 0; i < child_tag.info[0].size(); i++){
-                printf("%c %x ",text_sjis[i], (long)text_sjis[i]);
-            }cout<<endl;
-            //TextOut(hdc, 0, 20, text, 100);
-            //cout<<text<<endl;
-            //cout<<pos_p->height<<" "<<pos_p->width<<endl;
-            /*for(int i = 0; i < text.size(); i++){
-                if(pos_p->width + pro.size > window_width){
-                    pos_p->height += pro.size;
-                    pos_p->width = 0;
-                }
-                char ch[1]; ch[0] = text[i];
-                TextOut(hdc, pos_p->width, pos_p->height, ch, 1);
-                //SelectObject(hdc, hFont);
-                pos_p->width += pro.size;
-            }
-            if(pro.indention){
+        }
+        return;
+        /*cout<<s; printf(" %s\n",text_sjis);
+        for(int i = 0; i < child_tag.info[0].size(); i++){
+            printf("%c %x ",text_sjis[i], (long)text_sjis[i]);
+        }cout<<endl;*/
+        //TextOut(hdc, 0, 20, text, 100);
+        //cout<<text<<endl;
+        //cout<<pos_p->height<<" "<<pos_p->width<<endl;
+        /*for(int i = 0; i < text.size(); i++){
+            if(pos_p->width + pro.size > window_width){
                 pos_p->height += pro.size;
                 pos_p->width = 0;
-            }*/
-        }else{
-            HTML_Rendering(hWnd, hdc, child_id, pos_p);
+            }
+            char ch[1]; ch[0] = text[i];
+            TextOut(hdc, pos_p->width, pos_p->height, ch, 1);
+            //SelectObject(hdc, hFont);
+            pos_p->width += pro.size;
         }
+        if(pro.indention){
+            pos_p->height += pro.size;
+            pos_p->width = 0;
+        }*/
+    }
+
+    for(int child_id:element_tree[parent_id]){
+        tag child_tag = elements[child_id];
+        string s = child_tag.name;
+        character pro;
+
+        if(s == "title"){
+            pro.height = 20;
+            pro.width = 10;
+            pro.indention = true;
+        }
+        else if(s == "h1"){
+            pro.height = 48;
+            pro.width = 24;
+            pro.indention = true;
+        }
+        else if(s == "h2"){
+            pro.height = 36;
+            pro.width = 18;
+            pro.indention = true;
+        }
+        else if(s == "h3"){
+            pro.height = 24;
+            pro.width = 12;
+            pro.indention = true;
+        }
+        else if(s == "h4"){
+            pro.height = 16;
+            pro.width = 8;
+            pro.indention = true;
+        }
+        else if(s == "h5"){
+            pro.height = 16;
+            pro.width = 8;
+            pro.indention = true;
+        }
+        else if(s == "h6"){
+            pro.height = 16;
+            pro.width = 8;
+            pro.indention = true;
+        }
+
+
+        /*else if(s == "a"){
+            HTML_Rendering(hWnd, hdc, child_id, character(true));
+        }
+        else if(s == "p"){
+            HTML_Rendering(hWnd, hdc, child_id, character(true));
+        }
+        else if(s == "br"){
+            HTML_Rendering(hWnd, hdc, child_id, character(true));
+        }else if(s == "li"){
+            child_tag.info[0].push_front("  ・");
+        }
+        /*else if(s == "link"){
+            HTML_Rendering(hWnd, hdc, child_id, character(true));
+        }*/
+        HTML_Rendering(hWnd, hdc, child_id, pro, pos_p);
     }
 }
 
@@ -346,16 +342,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
                 InternetCloseHandle(hInternet);
                 //HTML_parser_test(0, 0);
                 HDC hdc = GetDC(hWnd);
+                character pro;
                 position pos(0, 20);
-                HTML_Rendering(hWnd, hdc, 0, &pos);
+                HTML_Rendering(hWnd, hdc, 0, pro, &pos);
                 ReleaseDC(hWnd, hdc);
             }
             return 0;
         case WM_PAINT:
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
+            character pro;
             position pos(0, 20);
-            HTML_Rendering(hWnd, hdc, 0, &pos);
+            HTML_Rendering(hWnd, hdc, 0, pro, &pos);
             EndPaint(hWnd, &ps);
             return 0;
     }
