@@ -2,6 +2,7 @@
 #include<iostream>
 #include<cstdbool>
 #include<vector>
+#include<deque>
 #include<cwchar>
 #include<string>
 using namespace std;
@@ -63,7 +64,6 @@ void HttpRequest(HINTERNET *hInternet_p, HINTERNET *hConnect_p, HINTERNET *hRequ
 struct tag{
     string name;
     vector<string> info;
-    vector<int> tag_id;
     tag(){}
     tag(string name){
         this->name = name;
@@ -105,10 +105,44 @@ tag tag_parser(HINTERNET hRequest){
     //cout<<endl;*/
     return tag(name, info);
 }
+void css_parser(HINTERNET hRequest){
+    char html_buf[1] = {0};
+    DWORD ReadLength = 1;
+    deque<char> dc(8, '0'); string s = "</style>";
+    while(true){
+        InternetReadFile(hRequest, html_buf, sizeof(html_buf), &ReadLength);
+        if(ReadLength == 0) break;
+        
+        dc.pop_front();
+        dc.push_back(html_buf[0]);
+        bool flag = true;
+        for(int i = 0; i < s.size(); i++){
+            if(dc[i] != s[i]) flag = false;
+        }
+        if(flag) break;
+    }
+}
+void javascript_parser(HINTERNET hRequest){
+    char html_buf[1] = {0};
+    DWORD ReadLength = 1;
+    deque<char> dc(9, '0'); string s = "</script>";
+    while(true){
+        InternetReadFile(hRequest, html_buf, sizeof(html_buf), &ReadLength);
+        if(ReadLength == 0) break;
+
+        dc.pop_front();
+        dc.push_back(html_buf[0]);
+        bool flag = true;
+        for(int i = 0; i < s.size(); i++){
+            if(dc[i] != s[i]) flag = false;
+        }
+        if(flag) break;
+    }
+}
 void HTML_parser(HINTERNET hRequest, int parent_id){
     char html_buf[1] = {0};
     DWORD ReadLength = 1;
-    int count = 1100;
+    int count = 1000;
     while(true){
         InternetReadFile(hRequest, html_buf, sizeof(html_buf), &ReadLength);
         /*char utf8[1000] = {0};
@@ -133,7 +167,13 @@ void HTML_parser(HINTERNET hRequest, int parent_id){
         //MultiByteToWideChar(CP_UTF8, 0, response_body_buf, -1, pszWideChar, 1025);
         if(html_buf[0] == '<'){
             tag t = tag_parser(hRequest);
-            if(t.name[0] != '/'){
+            if(t.name == "style"){
+                css_parser(hRequest);
+            }
+            else if(t.name == "script"){
+                javascript_parser(hRequest);
+            }
+            else if(t.name[0] != '/'){
                 int child_id = elements.size();
                 elements.push_back(tag());
                 elements[child_id] = t;
@@ -171,11 +211,12 @@ void HTML_parser_test(int parent_id, int depth){
 
 // HTML Rendering Engine
 struct character{
-    int height;
-    int width;
+    int height = 0;
+    int width = 0;
     string font;
     int color;
-    bool indention = 0;
+    int indent = 0;
+    bool indention = false;
     character(){}
 };
 struct position{
@@ -187,7 +228,10 @@ struct position{
 };
 void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, character pro, position *pos_p){
     tag parent_tag = elements[parent_id];
-    if(parent_tag.name == "text"){
+    string s = parent_tag.name;
+
+    if(s == "text"){
+        cout<<pro.height<<" "<<pro.width<<endl;
         RECT rect;
         GetWindowRect(hWnd, &rect);
         HFONT hFont = CreateFont(
@@ -251,62 +295,58 @@ void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, character pro, position *
         }*/
     }
 
-    for(int child_id:element_tree[parent_id]){
-        tag child_tag = elements[child_id];
-        string s = child_tag.name;
-        character pro;
-
-        if(s == "title"){
-            pro.height = 20;
-            pro.width = 10;
-            pro.indention = true;
-        }
-        else if(s == "h1"){
-            pro.height = 48;
-            pro.width = 24;
-            pro.indention = true;
-        }
-        else if(s == "h2"){
-            pro.height = 36;
-            pro.width = 18;
-            pro.indention = true;
-        }
-        else if(s == "h3"){
-            pro.height = 24;
-            pro.width = 12;
-            pro.indention = true;
-        }
-        else if(s == "h4"){
-            pro.height = 16;
-            pro.width = 8;
-            pro.indention = true;
-        }
-        else if(s == "h5"){
-            pro.height = 16;
-            pro.width = 8;
-            pro.indention = true;
-        }
-        else if(s == "h6"){
-            pro.height = 16;
-            pro.width = 8;
-            pro.indention = true;
-        }
+    else if(s == "title"){cout<<"title";
+        pro.height = 20;
+        pro.width = 10;
+        pro.indention = true;
+    }
+    else if(s == "h1"){
+        pro.height = 48;
+        pro.width = 24;
+        pro.indention = true;
+    }
+    else if(s == "h2"){
+        pro.height = 36;
+        pro.width = 18;
+        pro.indention = true;
+    }
+    else if(s == "h3"){
+        pro.height = 24;
+        pro.width = 12;
+        pro.indention = true;
+    }
+    else if(s == "h4"){
+        pro.height = 16;
+        pro.width = 8;
+        pro.indention = true;
+    }
+    else if(s == "h5"){
+        pro.height = 16;
+        pro.width = 8;
+        pro.indention = true;
+    }
+    else if(s == "h6"){
+        pro.height = 16;
+        pro.width = 8;
+        pro.indention = true;
+    }
 
 
-        /*else if(s == "a"){
-            HTML_Rendering(hWnd, hdc, child_id, character(true));
-        }
-        else if(s == "p"){
-            HTML_Rendering(hWnd, hdc, child_id, character(true));
-        }
-        else if(s == "br"){
-            HTML_Rendering(hWnd, hdc, child_id, character(true));
-        }else if(s == "li"){
-            child_tag.info[0].push_front("  ・");
-        }
-        /*else if(s == "link"){
-            HTML_Rendering(hWnd, hdc, child_id, character(true));
-        }*/
+    /*else if(s == "a"){
+        HTML_Rendering(hWnd, hdc, child_id, character(true));
+    }
+    else if(s == "p"){
+        HTML_Rendering(hWnd, hdc, child_id, character(true));
+    }
+    else if(s == "br"){
+        HTML_Rendering(hWnd, hdc, child_id, character(true));
+    }else if(s == "li"){
+        child_tag.info[0].push_front("  ・");
+    }
+    /*else if(s == "link"){
+        HTML_Rendering(hWnd, hdc, child_id, character(true));
+    }*/
+    for(int child_id:element_tree[parent_id]){    
         HTML_Rendering(hWnd, hdc, child_id, pro, pos_p);
     }
 }
