@@ -60,7 +60,7 @@ void HttpRequest(HINTERNET *hInternet_p, HINTERNET *hConnect_p, HINTERNET *hRequ
 }
 
 
-// HTML parser
+// parser
 struct tag{
     string name;
     vector<string> info;
@@ -180,7 +180,11 @@ void HTML_parser(HINTERNET hRequest, int parent_id){
                 element_tree.push_back(vector<int>());
                 element_tree[parent_id].push_back(child_id);
                 if(t.name == "!DOCTYPE") continue;
-                else if(t.name == "meta") continue;
+                else if(t.name == "meta"){
+                    continue;
+                }else if(t.name == "link"){
+                    continue;
+                }
                 else HTML_parser(hRequest, child_id);
             }else return;
         }else{
@@ -214,13 +218,16 @@ struct character{
     int height = 0;
     int width = 0;
     string font;
-    int color;
+    bool bold = false;
+    COLORREF color = RGB(0, 0, 0);
     int indent = 0;
     bool indention = false;
     character(){}
 };
 struct position{
     int height, width;
+    int window_height, window_width;
+    int scrollbar;
     position(int width, int height){
         this->height = height;
         this->width = width;
@@ -231,19 +238,17 @@ void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, character pro, position *
     string s = parent_tag.name;
 
     if(s == "text"){
-        cout<<pro.height<<" "<<pro.width<<endl;
-        RECT rect;
-        GetWindowRect(hWnd, &rect);
         HFONT hFont = CreateFont(
             pro.height, 0, // size
             0, 0,
-            FW_NORMAL, // bold
+            (pro.bold ? FW_BOLD : FW_NORMAL), // bold
             FALSE, // italic
             FALSE, FALSE,
             SHIFTJIS_CHARSET,
             OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, "Arial"
         );
-        int window_width = rect.right - rect.left;        
+        SelectObject(hdc, hFont);
+        SetTextColor(hdc, pro.color);
         int text_length = parent_tag.info[0].size();
         char text_utf8[text_length + 1] = {};
         WCHAR text_utf16[text_length + 1] = {}; char text_sjis[text_length + 1] = {};
@@ -255,14 +260,15 @@ void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, character pro, position *
         //printf(TEXT("%s\n"), text_sjis);
         for(int i = 0; i < text_length;){
             int code = 0;
-            int length = 0;
+            int line_length = (i == 0 ? pro.indent : 0);
             for(int j = 0; i + j < text_length; j++){
                 (code *= 256) += text_sjis[i+j] % 256;
                 if(text_sjis[i+j] < 0x100 || text_sjis[i+j+1] < 0x100){
-                    length += pro.width;
-                    if(length + pro.width > window_width || i + j == text_length - 1){
-                        SelectObject(hdc, hFont);
-                        TextOut(hdc, 0, pos_p->height, text_sjis + i, j + 1);
+                    line_length += pro.width;
+                    if(line_length + pro.width > pos_p->window_width || i + j == text_length - 1){
+                        if(pos_p->scrollbar <= pos_p->height){
+                            TextOut(hdc, (i == 0 ? pro.indent : 0), pos_p->height - pos_p->scrollbar, text_sjis + i, j + 1);
+                        }
                         pos_p->height += pro.height;
                         i += j + 1;
                         break;
@@ -295,11 +301,16 @@ void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, character pro, position *
         }*/
     }
 
-    else if(s == "title"){cout<<"title";
-        pro.height = 20;
-        pro.width = 10;
-        pro.indention = true;
+    else if(s == "title"){
+        string window_title_str = elements[element_tree[parent_id][0]].info[0];
+        char window_title[window_title_str.size() + 1] = {};
+        for(int i = 0; i < window_title_str.size(); i++){
+            window_title[i] = window_title_str[i];
+        }
+        SetWindowText(hWnd, window_title);
+        return;
     }
+
     else if(s == "h1"){
         pro.height = 48;
         pro.width = 24;
@@ -332,20 +343,28 @@ void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, character pro, position *
     }
 
 
-    /*else if(s == "a"){
-        HTML_Rendering(hWnd, hdc, child_id, character(true));
+    else if(s == "a"){
+        pro.height = 16;
+        pro.width = 8;
+        pro.color = RGB(0, 0, 0xFF);
+    }
+    else if(s == "b"){
+        pro.height = 16;
+        pro.width = 8;
+        pro.bold = true;
     }
     else if(s == "p"){
-        HTML_Rendering(hWnd, hdc, child_id, character(true));
+        pro.height = 16;
+        pro.width = 8;
+        pro.indent = 4;
     }
-    else if(s == "br"){
-        HTML_Rendering(hWnd, hdc, child_id, character(true));
-    }else if(s == "li"){
-        child_tag.info[0].push_front("  ・");
+    else if(s == "li"){
+        pro.height = 16;
+        pro.width = 8;
+        pro.indent = 4;
+        TextOut(hdc, 0, pos_p->height, "  ・", 7);
+        //elements[element_tree[parent_id][0]].info[0].insert(0, "  ・");
     }
-    /*else if(s == "link"){
-        HTML_Rendering(hWnd, hdc, child_id, character(true));
-    }*/
     for(int child_id:element_tree[parent_id]){    
         HTML_Rendering(hWnd, hdc, child_id, pro, pos_p);
     }
@@ -354,9 +373,48 @@ void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, character pro, position *
 
 // window processing
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
+    static SCROLLINFO scr;
     switch (uMsg){
         case WM_DESTROY:
             PostQuitMessage(0);
+            return 0;
+        case WM_CREATE:
+            scr.cbSize = sizeof(SCROLLINFO);
+            scr.fMask = SIF_PAGE | SIF_POS | SIF_RANGE;
+            scr.nMin = 0; scr.nMax = 600;
+            scr.nPage = 1;
+
+            SetScrollInfo(hWnd , SB_VERT , &scr , TRUE);
+            return 0;
+        case WM_VSCROLL:
+            switch(LOWORD(wParam)){
+                case SB_TOP:
+                    scr.nPos = scr.nMin;
+                    break;
+                case SB_BOTTOM:
+                    scr.nPos = scr.nMax;
+                    break;
+                case SB_LINEUP:
+                    if(scr.nPos > 0) scr.nPos--;
+                    break;
+                case SB_LINEDOWN:
+                    if(scr.nPos < scr.nMax - 1) scr.nPos++;
+                    break;
+                case SB_PAGEUP:
+                    scr.nPos -= scr.nPage;
+                    break;
+                case SB_PAGEDOWN:
+                    scr.nPos += scr.nPage;
+                    break;
+                case SB_THUMBTRACK:
+                case SB_THUMBPOSITION:
+                    scr.nPos = HIWORD(wParam);
+                    break;
+            }
+            SetScrollInfo(hWnd , SB_VERT , &scr , TRUE);
+
+            InvalidateRect(hWnd , NULL , TRUE);
+            UpdateWindow(hWnd);
             return 0;
         case WM_COMMAND:
             if(HIWORD(wParam) == BN_CLICKED){
@@ -371,13 +429,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
                 HttpRequest(&hInternet, &hConnect, &hRequest, url);
                 // https://ja.wikipedia.org/wiki/Uniform_Resource_Locator
                 
-                /*int count = 1000;
-                while(true){
-                    InternetReadFile(hRequest, html_buf, sizeof(html_buf), &ReadLength);
-                    //cout<<(wchar_t)html_buf[0];
-                    printf("%x ",html_buf[0]);
-                    if(!count--) break;
-                }*/
                 HTML_parser(hRequest, 0);
                 InternetCloseHandle(hInternet);
                 //HTML_parser_test(0, 0);
@@ -391,10 +442,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
         case WM_PAINT:
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
+
             character pro;
             position pos(0, 20);
+            RECT rect;
+            GetWindowRect(hWnd, &rect);
+            pos.window_height = rect.bottom - rect.top;
+            pos.window_width = rect.right - rect.left;
+            pos.scrollbar = scr.nPos;
             HTML_Rendering(hWnd, hdc, 0, pro, &pos);
             EndPaint(hWnd, &ps);
+
+            scr.nMax = pos.height;
+            SetScrollInfo(hWnd , SB_VERT , &scr, TRUE);
             return 0;
     }
     return DefWindowProc(hWnd, uMsg, wParam, lParam);
@@ -418,7 +478,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	HWND hWnd = CreateWindow(
         "test", "Title",
-        WS_OVERLAPPEDWINDOW,
+        WS_OVERLAPPEDWINDOW | WS_VSCROLL,
         100, 100, 800, 600, NULL, NULL,
         hInstance, NULL
 	);
