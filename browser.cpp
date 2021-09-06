@@ -3,6 +3,7 @@
 #include<cstdbool>
 #include<vector>
 #include<deque>
+#include<set>
 #include<cwchar>
 #include<string>
 using namespace std;
@@ -41,69 +42,69 @@ void HttpRequest(HINTERNET *hInternet_p, HINTERNET *hConnect_p, HINTERNET *hRequ
         printf(url_string);
     }
 
-    DWORD query_info_buf = {0};
-    DWORD query_info_buf_length = sizeof(query_info_buf);
-    /*HttpQueryInfo(
+    DWORD query_attributes_buf = {0};
+    DWORD query_attributes_buf_length = sizeof(query_attributes_buf);
+    /*HttpQueryattributes(
         hRequest,
         HTTP_QUERY_STATUS_CODE | HTTP_QUERY_STATUS_TEXT | HTTP_QUERY_FLAG_NUMBER | 
         HTTP_QUERY_CONTENT_TYPE | HTTP_QUERY_COOKIE | HTTP_QUERY_DATE,
-        &query_info_buf, &query_info_buf_length, NULL
+        &query_attributes_buf, &query_attributes_buf_length, NULL
     );*/
-    /*HttpQueryInfo(
+    /*HttpQueryattributes(
         hRequest,
         HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER,
-        &query_info_buf, &query_info_buf_length, 0
+        &query_attributes_buf, &query_attributes_buf_length, 0
     );*/
-    //printf("%d\n",query_info_buf);
-    //HttpQueryInfo(hRequest, HTTP_QUERY_STATUS_TEXT, &query_info_buf, &query_info_buf_length, 0);
-    //printf("%s\n",query_info_buf);
+    //printf("%d\n",query_attributes_buf);
+    //HttpQueryattributes(hRequest, HTTP_QUERY_STATUS_TEXT, &query_attributes_buf, &query_attributes_buf_length, 0);
+    //printf("%s\n",query_attributes_buf);
 }
 
 
 // parser
-struct tag{
-    string name;
-    vector<string> info;
-    tag(){}
-    tag(string name){
+struct Element {
+    string name = "";
+    vector<string> attributes;
+    vector<int> child_element;
+    Element(){}
+    Element(string name){
         this->name = name;
     }
-    tag(string name, vector<string> info){
+    Element(string name, vector<string> attributes){
         this->name = name;
-        this->info = info;
+        this->attributes = attributes;
     }
 };
+set<string> empty_element_name = { "!DOCTYPE", "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"};
+vector<Element> document(1);
 
-vector<tag> elements(1);
-vector<vector<int>> element_tree(1);
-
-tag tag_parser(HINTERNET hRequest){
+Element tag_parser(HINTERNET hRequest){
     char tag_buf[1] = {0};
     DWORD ReadLength;
-    string name = ""; bool tag_flag = true;
-    vector<string> info;
+    bool tag_flag = true;
+    Element elm;
     string data = "";
     while(InternetReadFile(hRequest, tag_buf, sizeof(tag_buf), &ReadLength)){
         if(tag_buf[0] == '>'){
-            info.push_back(data);
+            elm.attributes.push_back(data);
             break;
         }
         if(tag_flag){
-            if(tag_buf[0] != ' ') name += tag_buf[0];
+            if(tag_buf[0] != ' ') elm.name += tag_buf[0];
             else tag_flag = false;
         }else{
             if(tag_buf[0] != '=' && tag_buf[0] != ' ') data += tag_buf[0];
             else{
                 if(data[0] == '\"' && data.back() == '\"') data = data.substr(1, data.size()-2);
-                info.push_back(data);
+                elm.attributes.push_back(data);
                 data = "";
             }
         }
     }
     /*cout<<name;
-    for(string data:info) cout<<" "<<data;
+    for(string data:attributes) cout<<" "<<data;
     //cout<<endl;*/
-    return tag(name, info);
+    return elm;
 }
 void css_parser(HINTERNET hRequest){
     char html_buf[1] = {0};
@@ -122,7 +123,7 @@ void css_parser(HINTERNET hRequest){
         if(flag) break;
     }
 }
-void javascript_parser(HINTERNET hRequest){
+void js_parser(HINTERNET hRequest){
     char html_buf[1] = {0};
     DWORD ReadLength = 1;
     deque<char> dc(9, '0'); string s = "</script>";
@@ -139,7 +140,7 @@ void javascript_parser(HINTERNET hRequest){
         if(flag) break;
     }
 }
-void HTML_parser(HINTERNET hRequest, int parent_id){
+void html_parser(HINTERNET hRequest, int parent_id){
     char html_buf[1] = {0};
     DWORD ReadLength = 1;
     int count = 1000;
@@ -166,49 +167,41 @@ void HTML_parser(HINTERNET hRequest, int parent_id){
         //LPWSTR pszWideChar = (LPWSTR)malloc(1025 * sizeof(WCHAR));
         //MultiByteToWideChar(CP_UTF8, 0, response_body_buf, -1, pszWideChar, 1025);
         if(html_buf[0] == '<'){
-            tag t = tag_parser(hRequest);
-            if(t.name == "style"){
+            Element elm = tag_parser(hRequest);
+            if(elm.name == "style"){
                 css_parser(hRequest);
             }
-            else if(t.name == "script"){
-                javascript_parser(hRequest);
+            else if(elm.name == "script"){
+                js_parser(hRequest);
             }
-            else if(t.name[0] != '/'){
-                int child_id = elements.size();
-                elements.push_back(tag());
-                elements[child_id] = t;
-                element_tree.push_back(vector<int>());
-                element_tree[parent_id].push_back(child_id);
-                if(t.name == "!DOCTYPE") continue;
-                else if(t.name == "meta"){
-                    continue;
-                }else if(t.name == "link"){
-                    continue;
-                }
-                else HTML_parser(hRequest, child_id);
+            else if(elm.name[0] != '/'){ // opening tag
+                int child_id = document.size();
+                document.push_back(Element());
+                document[child_id] = elm;
+                document[parent_id].child_element.push_back(child_id);
+                if(!empty_element_name.count(elm.name)) html_parser(hRequest, child_id);
             }else return;
         }else{
-            if(elements.back().name == "text"){
-                elements.back().info[0] += html_buf[0];
+            if(document.back().name == "text"){
+                document.back().attributes[0] += html_buf[0];
             }else{
-                int child_id = elements.size();
-                elements.push_back(tag());
-                elements[child_id] = tag("text", vector<string>({string({html_buf[0]})}));
-                element_tree.push_back(vector<int>());
-                element_tree[parent_id].push_back(child_id);
+                int child_id = document.size();
+                document.push_back(Element());
+                document[child_id] = Element("text", vector<string>({string({html_buf[0]})}));
+                document[parent_id].child_element.push_back(child_id);
             }
         }
         if(!count--) break;
     };
     //InternetCloseHandle(hRequest);
 }
-void HTML_parser_test(int parent_id, int depth){
-    for(int child_id:element_tree[parent_id]){
+void html_parser_test(int parent_id, int depth){
+    for(int child_id:document[parent_id].child_element){
         for(int i = 0; i < depth; i++) cout<<"    ";
-        cout<<elements[child_id].name;
-        //for(string data:elements[child_id].info) cout<<" "<<data;
+        cout<<document[child_id].name;
+        //for(string data:elements[child_id].attributes) cout<<" "<<data;
         cout<<endl;
-        HTML_parser_test(child_id, depth + 1);
+        html_parser_test(child_id, depth + 1);
     }
 }
 
@@ -233,8 +226,8 @@ struct position{
         this->width = width;
     }
 };
-void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, character pro, position *pos_p){
-    tag parent_tag = elements[parent_id];
+void render(HWND hWnd, HDC hdc, int parent_id, character pro, position *pos_p){
+    Element parent_tag = document[parent_id];
     string s = parent_tag.name;
 
     if(s == "text"){
@@ -249,11 +242,11 @@ void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, character pro, position *
         );
         SelectObject(hdc, hFont);
         SetTextColor(hdc, pro.color);
-        int text_length = parent_tag.info[0].size();
+        int text_length = parent_tag.attributes[0].size();
         char text_utf8[text_length + 1] = {};
         WCHAR text_utf16[text_length + 1] = {}; char text_sjis[text_length + 1] = {};
         for(int i = 0; i < text_length; i++){
-            text_utf8[i] = parent_tag.info[0][i];
+            text_utf8[i] = parent_tag.attributes[0][i];
         }
         MultiByteToWideChar(CP_UTF8, 0, text_utf8, -1, text_utf16, sizeof(text_utf16) / sizeof(TCHAR));
         WideCharToMultiByte(932, 0, text_utf16, -1, text_sjis, sizeof(text_sjis), NULL, NULL);
@@ -279,7 +272,7 @@ void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, character pro, position *
         }
         return;
         /*cout<<s; printf(" %s\n",text_sjis);
-        for(int i = 0; i < child_tag.info[0].size(); i++){
+        for(int i = 0; i < child_tag.attributes[0].size(); i++){
             printf("%c %x ",text_sjis[i], (long)text_sjis[i]);
         }cout<<endl;*/
         //TextOut(hdc, 0, 20, text, 100);
@@ -302,7 +295,7 @@ void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, character pro, position *
     }
 
     else if(s == "title"){
-        string window_title_str = elements[element_tree[parent_id][0]].info[0];
+        string window_title_str = document[document[parent_id].child_element[0]].attributes[0];
         char window_title[window_title_str.size() + 1] = {};
         for(int i = 0; i < window_title_str.size(); i++){
             window_title[i] = window_title_str[i];
@@ -363,10 +356,10 @@ void HTML_Rendering(HWND hWnd, HDC hdc, int parent_id, character pro, position *
         pro.width = 8;
         pro.indent = 4;
         TextOut(hdc, 0, pos_p->height, "  ・", 7);
-        //elements[element_tree[parent_id][0]].info[0].insert(0, "  ・");
+        //elements[element_tree[parent_id][0]].attributes[0].insert(0, "  ・");
     }
-    for(int child_id:element_tree[parent_id]){    
-        HTML_Rendering(hWnd, hdc, child_id, pro, pos_p);
+    for(int child_id:document[parent_id].child_element){    
+        render(hWnd, hdc, child_id, pro, pos_p);
     }
 }
 
@@ -429,13 +422,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
                 HttpRequest(&hInternet, &hConnect, &hRequest, url);
                 // https://ja.wikipedia.org/wiki/Uniform_Resource_Locator
                 
-                HTML_parser(hRequest, 0);
+                html_parser(hRequest, 0);
                 InternetCloseHandle(hInternet);
-                //HTML_parser_test(0, 0);
+                //html_parser_test(0, 0);
                 HDC hdc = GetDC(hWnd);
                 character pro;
                 position pos(0, 20);
-                HTML_Rendering(hWnd, hdc, 0, pro, &pos);
+                render(hWnd, hdc, 0, pro, &pos);
                 ReleaseDC(hWnd, hdc);
             }
             return 0;
@@ -450,7 +443,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
             pos.window_height = rect.bottom - rect.top;
             pos.window_width = rect.right - rect.left;
             pos.scrollbar = scr.nPos;
-            HTML_Rendering(hWnd, hdc, 0, pro, &pos);
+            render(hWnd, hdc, 0, pro, &pos);
             EndPaint(hWnd, &ps);
 
             scr.nMax = pos.height;
