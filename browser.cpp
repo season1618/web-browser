@@ -140,7 +140,7 @@ void js_parser(HINTERNET hRequest){
         if(flag) break;
     }
 }
-void html_parser(HINTERNET hRequest, int parent_id){
+void html_parser(HINTERNET hRequest, int id){
     char html_buf[1] = {0};
     DWORD ReadLength = 1;
     int count = 1000;
@@ -166,7 +166,7 @@ void html_parser(HINTERNET hRequest, int parent_id){
         if(ReadLength == 0) break;
         //LPWSTR pszWideChar = (LPWSTR)malloc(1025 * sizeof(WCHAR));
         //MultiByteToWideChar(CP_UTF8, 0, response_body_buf, -1, pszWideChar, 1025);
-        if(html_buf[0] == '<'){
+        if(html_buf[0] == '<'){ // element
             Element elm = tag_parser(hRequest);
             if(elm.name == "style"){
                 css_parser(hRequest);
@@ -178,17 +178,18 @@ void html_parser(HINTERNET hRequest, int parent_id){
                 int child_id = document.size();
                 document.push_back(Element());
                 document[child_id] = elm;
-                document[parent_id].child_element.push_back(child_id);
+                document[id].child_element.push_back(child_id);
                 if(!empty_element_name.count(elm.name)) html_parser(hRequest, child_id);
             }else return;
-        }else{
+        }
+        else{ // text
             if(document.back().name == "text"){
                 document.back().attributes[0] += html_buf[0];
             }else{
                 int child_id = document.size();
                 document.push_back(Element());
                 document[child_id] = Element("text", vector<string>({string({html_buf[0]})}));
-                document[parent_id].child_element.push_back(child_id);
+                document[id].child_element.push_back(child_id);
             }
         }
         if(!count--) break;
@@ -218,17 +219,17 @@ struct character{
     character(){}
 };
 struct position{
-    int height, width;
+    int y, x;
     int window_height, window_width;
     int scrollbar;
-    position(int width, int height){
-        this->height = height;
-        this->width = width;
+    position(int y, int x){
+        this->y = y;
+        this->x = x;
     }
 };
-void render(HWND hWnd, HDC hdc, int parent_id, character pro, position *pos_p){
-    Element parent_tag = document[parent_id];
-    string s = parent_tag.name;
+void render(HWND hWnd, HDC hdc, position& pos, int id = 0, character pro = character()){
+    Element elm = document[id];
+    string s = elm.name;
 
     if(s == "text"){
         HFONT hFont = CreateFont(
@@ -242,34 +243,40 @@ void render(HWND hWnd, HDC hdc, int parent_id, character pro, position *pos_p){
         );
         SelectObject(hdc, hFont);
         SetTextColor(hdc, pro.color);
-        int text_length = parent_tag.attributes[0].size();
+        int text_length = elm.attributes[0].size();
         char text_utf8[text_length + 1] = {};
         WCHAR text_utf16[text_length + 1] = {}; char text_sjis[text_length + 1] = {};
         for(int i = 0; i < text_length; i++){
-            text_utf8[i] = parent_tag.attributes[0][i];
+            text_utf8[i] = elm.attributes[0][i];
         }
         MultiByteToWideChar(CP_UTF8, 0, text_utf8, -1, text_utf16, sizeof(text_utf16) / sizeof(TCHAR));
         WideCharToMultiByte(932, 0, text_utf16, -1, text_sjis, sizeof(text_sjis), NULL, NULL);
         //printf(TEXT("%s\n"), text_sjis);
-        for(int i = 0; i < text_length;){
+        RECT rect;
+        rect.left = pos.x;
+        rect.top = pos.y;
+        rect.right = pos.x + pos.window_width;
+        rect.bottom = pos.y + pos.window_height;
+        DrawText(hdc, text_sjis, sizeof(text_sjis), &rect, DT_WORDBREAK);
+        /*for(int i = 0; i < text_length;){
             int code = 0;
             int line_length = (i == 0 ? pro.indent : 0);
             for(int j = 0; i + j < text_length; j++){
                 (code *= 256) += text_sjis[i+j] % 256;
                 if(text_sjis[i+j] < 0x100 || text_sjis[i+j+1] < 0x100){
                     line_length += pro.width;
-                    if(line_length + pro.width > pos_p->window_width || i + j == text_length - 1){
-                        if(pos_p->scrollbar <= pos_p->height){
-                            TextOut(hdc, (i == 0 ? pro.indent : 0), pos_p->height - pos_p->scrollbar, text_sjis + i, j + 1);
+                    if(line_length + pro.width > pos.window_width || i + j == text_length - 1){
+                        if(pos.scrollbar <= pos.y){
+                            TextOut(hdc, (i == 0 ? pro.indent : 0), pos.y - pos.scrollbar, text_sjis + i, j + 1);
                         }
-                        pos_p->height += pro.height;
+                        pos.y += pro.height;
                         i += j + 1;
                         break;
                     }
                     code = 0;
                 }
             }
-        }
+        }*/
         return;
         /*cout<<s; printf(" %s\n",text_sjis);
         for(int i = 0; i < child_tag.attributes[0].size(); i++){
@@ -295,7 +302,7 @@ void render(HWND hWnd, HDC hdc, int parent_id, character pro, position *pos_p){
     }
 
     else if(s == "title"){
-        string window_title_str = document[document[parent_id].child_element[0]].attributes[0];
+        string window_title_str = document[elm.child_element[0]].attributes[0];
         char window_title[window_title_str.size() + 1] = {};
         for(int i = 0; i < window_title_str.size(); i++){
             window_title[i] = window_title_str[i];
@@ -355,11 +362,11 @@ void render(HWND hWnd, HDC hdc, int parent_id, character pro, position *pos_p){
         pro.height = 16;
         pro.width = 8;
         pro.indent = 4;
-        TextOut(hdc, 0, pos_p->height, "  ・", 7);
+        TextOut(hdc, 0, pos.y, "  ・", 7);
         //elements[element_tree[parent_id][0]].attributes[0].insert(0, "  ・");
     }
-    for(int child_id:document[parent_id].child_element){    
-        render(hWnd, hdc, child_id, pro, pos_p);
+    for(int child_id:elm.child_element){
+        render(hWnd, hdc, pos, child_id, pro);
     }
 }
 
@@ -367,7 +374,7 @@ void render(HWND hWnd, HDC hdc, int parent_id, character pro, position *pos_p){
 // window processing
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
     static SCROLLINFO scr;
-    switch (uMsg){
+    switch(uMsg){
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;
@@ -426,9 +433,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
                 InternetCloseHandle(hInternet);
                 //html_parser_test(0, 0);
                 HDC hdc = GetDC(hWnd);
-                character pro;
-                position pos(0, 20);
-                render(hWnd, hdc, 0, pro, &pos);
+                position pos(20, 0);
+                render(hWnd, hdc, pos);
                 ReleaseDC(hWnd, hdc);
             }
             return 0;
@@ -436,17 +442,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
 
-            character pro;
-            position pos(0, 20);
             RECT rect;
             GetWindowRect(hWnd, &rect);
+            position pos(20, 0);
             pos.window_height = rect.bottom - rect.top;
             pos.window_width = rect.right - rect.left;
             pos.scrollbar = scr.nPos;
-            render(hWnd, hdc, 0, pro, &pos);
+            render(hWnd, hdc, pos);
             EndPaint(hWnd, &ps);
 
-            scr.nMax = pos.height;
+            scr.nMax = pos.y;
             SetScrollInfo(hWnd , SB_VERT , &scr, TRUE);
             return 0;
     }
@@ -492,7 +497,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     ShowWindow(hWnd, nCmdShow);
 
-    TCHAR str[] = TEXT("hello world");
+    TCHAR str[] = TEXT("窓");
     HDC hdc = GetDC(hWnd);
     TextOut(hdc, 100, 100, str, lstrlen(str));
     ReleaseDC(hWnd, hdc);
