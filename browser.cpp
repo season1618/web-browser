@@ -13,7 +13,7 @@ using namespace std;
 //#pragma comment (lib, "wininet.lib")
 
 // HTTP communication
-void HttpRequest(HINTERNET *hInternet_p, HINTERNET *hConnect_p, HINTERNET *hRequest_p, char* url_string){
+void HttpRequest(char* url_string, string& data){
     URL_COMPONENTS url_components;
     ZeroMemory(&url_components, sizeof(URL_COMPONENTS));
     url_components.dwStructSize = sizeof(URL_COMPONENTS);
@@ -30,13 +30,13 @@ void HttpRequest(HINTERNET *hInternet_p, HINTERNET *hConnect_p, HINTERNET *hRequ
     /*printf("%s\n",url_components.lpszHostName);
     printf("%d\n",url_components.nPort);
     printf("%s\n",url_components.lpszUrlPath);*/
-    *hInternet_p = InternetOpen(NULL, INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
-    *hConnect_p = InternetConnect(*hInternet_p, url_components.lpszHostName, INTERNET_DEFAULT_HTTP_PORT, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
-    *hRequest_p = HttpOpenRequest(*hConnect_p, "GET", url_components.lpszUrlPath, "HTTP/1.1", NULL, NULL, INTERNET_FLAG_RELOAD, 0);
+    HINTERNET hInternet = InternetOpen(NULL, INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+    HINTERNET hConnect = InternetConnect(hInternet, url_components.lpszHostName, INTERNET_DEFAULT_HTTP_PORT, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
+    HINTERNET hRequest = HttpOpenRequest(hConnect, "GET", url_components.lpszUrlPath, "HTTP/1.1", NULL, NULL, INTERNET_FLAG_RELOAD, 0);
     char header[10];//"Content-Type: application/x-www-form-urlencoded; charset=utf-8";
     char optional[10];//"a=1234&b=5678";
     //BOOL r = HttpSendRequest(hRequest, header, strlen(header), (LPVOID)data, strlen(data));
-    if(!HttpSendRequest(*hRequest_p, NULL, 0, NULL, 0)){
+    if(!HttpSendRequest(hRequest, NULL, 0, NULL, 0)){
         printf("failed to send a request\n");
         printf("Error Code : %d\n",GetLastError());
         printf(url_string);
@@ -58,6 +58,18 @@ void HttpRequest(HINTERNET *hInternet_p, HINTERNET *hConnect_p, HINTERNET *hRequ
     //printf("%d\n",query_attributes_buf);
     //HttpQueryattributes(hRequest, HTTP_QUERY_STATUS_TEXT, &query_attributes_buf, &query_attributes_buf_length, 0);
     //printf("%s\n",query_attributes_buf);
+    DWORD BufferSize = 1024;
+    DWORD ReadLength;
+    char ReadBuffer[BufferSize];
+    while(true){
+        for(int i = 0; i < BufferSize; i++) ReadBuffer[i] = '\0';
+        if(!InternetReadFile(hRequest, ReadBuffer, BufferSize, &ReadLength)) break;
+        //ReadBuffer[BufferSize] = '\0';
+        for(char c:ReadBuffer){
+            if(c == '\0') break;
+            data.push_back(c);
+        }
+    }
 }
 
 
@@ -76,127 +88,109 @@ struct Element {
     }
 };
 set<string> empty_element_name = { "!DOCTYPE", "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"};
+string data = "";
 vector<Element> document(1);
 
-Element tag_parser(HINTERNET hRequest){
-    char tag_buf[1] = {0};
-    DWORD ReadLength;
-    bool tag_flag = true;
+Element tag_parser(string& data, int& i){
+    bool is_name = true;
     Element elm;
-    string data = "";
-    while(InternetReadFile(hRequest, tag_buf, sizeof(tag_buf), &ReadLength)){
-        if(tag_buf[0] == '>'){
-            elm.attributes.push_back(data);
-            break;
-        }
-        if(tag_flag){
-            if(tag_buf[0] != ' ') elm.name += tag_buf[0];
-            else tag_flag = false;
+    string attr = "";
+    for(; data[i] != '>'; i++){
+        char c = data[i];
+        if(is_name){
+            if(c != ' ') elm.name += c;
+            else is_name = false;
         }else{
-            if(tag_buf[0] != '=' && tag_buf[0] != ' ') data += tag_buf[0];
+            if(c != '=' && c != ' ') attr += c;
             else{
-                if(data[0] == '\"' && data.back() == '\"') data = data.substr(1, data.size()-2);
-                elm.attributes.push_back(data);
-                data = "";
+                if(attr[0] == '\"' && attr.back() == '\"') attr = attr.substr(1, attr.size()-2);
+                elm.attributes.push_back(attr);
+                attr = "";
             }
         }
     }
+    elm.attributes.push_back(attr);
     /*cout<<name;
     for(string data:attributes) cout<<" "<<data;
     //cout<<endl;*/
     return elm;
 }
-void css_parser(HINTERNET hRequest){
-    char html_buf[1] = {0};
-    DWORD ReadLength = 1;
+void css_parser(string& data, int& i){
     deque<char> dc(8, '0'); string s = "</style>";
-    while(true){
-        InternetReadFile(hRequest, html_buf, sizeof(html_buf), &ReadLength);
-        if(ReadLength == 0) break;
-        
+    for(; i < data.size(); i++){
+        char c = data[i];
         dc.pop_front();
-        dc.push_back(html_buf[0]);
+        dc.push_back(c);
         bool flag = true;
-        for(int i = 0; i < s.size(); i++){
-            if(dc[i] != s[i]) flag = false;
+        for(int j = 0; j < s.size(); j++){
+            if(dc[j] != s[j]) flag = false;
         }
         if(flag) break;
     }
 }
-void js_parser(HINTERNET hRequest){
-    char html_buf[1] = {0};
-    DWORD ReadLength = 1;
+void js_parser(string& data, int& i){
     deque<char> dc(9, '0'); string s = "</script>";
-    while(true){
-        InternetReadFile(hRequest, html_buf, sizeof(html_buf), &ReadLength);
-        if(ReadLength == 0) break;
-
+    for(; i < data.size(); i++){
+        char c = data[i];
         dc.pop_front();
-        dc.push_back(html_buf[0]);
+        dc.push_back(c);
         bool flag = true;
-        for(int i = 0; i < s.size(); i++){
-            if(dc[i] != s[i]) flag = false;
+        for(int j = 0; j < s.size(); j++){
+            if(dc[j] != s[j]) flag = false;
         }
         if(flag) break;
     }
 }
-void html_parser(HINTERNET hRequest, int id){
-    char html_buf[1] = {0};
-    DWORD ReadLength = 1;
+char read_utf8(string& data, int& i){
+    if(data[i] & 128 == 0){
+        return data[i];
+    }else if(data[i] & (128 + 64 + 32) == 128 + 64){
+        i++;
+        return '?';
+    }else if(data[i] & (128 + 64 + 32 + 16) == 128 + 64 + 32){
+        i += 2;
+        return '?';
+    }else if(data[i] & (128 + 64 + 32 + 16 + 8) == 128 + 64 + 32 + 16){
+        i += 3;
+        return '?';
+    }else{
+        return '?';
+    }
+}
+void html_parser(string& data, int& i, int id){
     int count = 1000;
-    while(true){
-        InternetReadFile(hRequest, html_buf, sizeof(html_buf), &ReadLength);
-        /*char utf8[1000] = {0};
-        DWORD ReadLength = 1000;
-        InternetReadFile(hRequest, utf8, sizeof(utf8), &ReadLength);
-        WCHAR utf16[1000] = {};
-        MultiByteToWideChar(CP_UTF8, 0, utf8, -1, utf16, sizeof(utf16) / sizeof(TCHAR));
-        char sjis[1000] = {};
-        WideCharToMultiByte(932, 0, utf16, -1, sjis, sizeof(sjis), NULL, NULL);
-        printf(TEXT("%s\n"), sjis);
-        for(int i = 0; i < 1000; i++){
-            printf("%x ",utf8[i]);
-        }cout<<endl;
-        for(int i = 0; i < 1000; i++){
-            printf("%x ",utf16[i]);
-        }cout<<endl;
-        for(int i = 0; i < 1000; i++){
-            printf("%x ",sjis[i]);
-        }cout<<endl;*/
-        if(ReadLength == 0) break;
-        //LPWSTR pszWideChar = (LPWSTR)malloc(1025 * sizeof(WCHAR));
-        //MultiByteToWideChar(CP_UTF8, 0, response_body_buf, -1, pszWideChar, 1025);
-        if(html_buf[0] == '<'){ // element
-            Element elm = tag_parser(hRequest);
+    for(; i < data.size(); i++){
+        char c = read_utf8(data, i);
+        if(c == '<'){ // element
+            Element elm = tag_parser(data, i);
             if(elm.name == "style"){
-                css_parser(hRequest);
+                css_parser(data, i);
             }
             else if(elm.name == "script"){
-                js_parser(hRequest);
+                js_parser(data, i);
             }
             else if(elm.name[0] != '/'){ // opening tag
                 int child_id = document.size();
                 document.push_back(Element());
                 document[child_id] = elm;
                 document[id].child_element.push_back(child_id);
-                if(!empty_element_name.count(elm.name)) html_parser(hRequest, child_id);
+                if(!empty_element_name.count(elm.name)) html_parser(data, i, child_id);
             }else return;
         }
         else{ // text
             if(document.back().name == "text"){
-                document.back().attributes[0] += html_buf[0];
+                document.back().attributes[0] += c;
             }else{
                 int child_id = document.size();
                 document.push_back(Element());
-                document[child_id] = Element("text", vector<string>({string({html_buf[0]})}));
+                document[child_id] = Element("text", vector<string>({string({c})}));
                 document[id].child_element.push_back(child_id);
             }
         }
         if(!count--) break;
-    };
-    //InternetCloseHandle(hRequest);
+    }
 }
-void html_parser_test(int parent_id, int depth){
+/*void html_parser_test(int parent_id, int depth){
     for(int child_id:document[parent_id].child_element){
         for(int i = 0; i < depth; i++) cout<<"    ";
         cout<<document[child_id].name;
@@ -204,7 +198,7 @@ void html_parser_test(int parent_id, int depth){
         cout<<endl;
         html_parser_test(child_id, depth + 1);
     }
-}
+}*/
 
 
 // HTML Rendering Engine
@@ -425,12 +419,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
                 //printf("%s\n",url);
 
                 // communication
-                HINTERNET hInternet, hConnect, hRequest;
-                HttpRequest(&hInternet, &hConnect, &hRequest, url);
+                HttpRequest(url, data);
                 // https://ja.wikipedia.org/wiki/Uniform_Resource_Locator
                 
-                html_parser(hRequest, 0);
-                InternetCloseHandle(hInternet);
+                int i = 0;
+                html_parser(data, i, 0);
                 //html_parser_test(0, 0);
                 HDC hdc = GetDC(hWnd);
                 position pos(20, 0);
