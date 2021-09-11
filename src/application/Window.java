@@ -1,4 +1,4 @@
-package window;
+package application;
 
 import java.awt.*;
 import java.awt.event.*;
@@ -6,10 +6,11 @@ import javax.swing.*;
 import javax.swing.text.*;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
-import window.reader.Element;
-import window.reader.Parser;
-//import parser.Parser;
+import application.Element;
+import application.Parser;
+import application.Renderer;
 
 public class Window extends JFrame implements WindowListener, ActionListener {
     TextField tf;
@@ -76,17 +77,16 @@ public class Window extends JFrame implements WindowListener, ActionListener {
 	public void actionPerformed(ActionEvent ev){
 		if(ev.getSource() == tf){
 			String urlString = tf.getText();
-			ArrayList<Element> document = new ArrayList<Element>(1);
+			ArrayList<Element> document = new ArrayList<Element>(Arrays.asList(new Element()));
 			Parser parser = new Parser(urlString);
 			parser.parseHTML(document, 0);
-			for(Element elm:document){
+			/*for(Element elm:document){
 				System.out.print(elm.name);
 				for(String s:elm.attributes) System.out.print(" " + s);
 				System.out.println();
-			}
-			//textpane.setText("");
-			//StyledDocument doc = textpane.getStyledDocument();
-			//Style style = doc.getStyle(StyleContext.DEFAULT_STYLE);
+			}*/
+			Renderer renderer = new Renderer(this, textpane);
+			renderer.renderHTML(document, 0);
 		}
 	}
 }

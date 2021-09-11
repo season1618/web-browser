@@ -1,8 +1,7 @@
-package window.reader;
+package application;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import window.reader.Element;
 
 import java.net.URL;
 import java.net.HttpURLConnection;
@@ -40,11 +39,10 @@ public class Parser {
                     Element elm = parseTag();
                     if(elm.name.charAt(0) != '/'){ // opening tag
                         int child_id = document.size();
-                        document.add(new Element());
-                        document.set(child_id, elm);
+                        document.add(elm);
                         document.get(id).childElements.add(child_id);
                         if(!emptyElementName.contains(elm.name)) parseHTML(document, child_id);
-                    }else{
+                    }else{ // closing tag
                         return;
                     }
                 }else{ // text
@@ -53,9 +51,7 @@ public class Parser {
                         document.get(n-1).attributes.set(0, document.get(n-1).attributes.get(0).concat(String.valueOf(c)));
                     }else if(c != '\n'){
                         int child_id = document.size();
-                        document.add(new Element());
-                        document.get(child_id).name = "text";
-                        document.get(child_id).attributes.add(String.valueOf(c));
+                        document.add(new Element("text", String.valueOf(c)));
                         document.get(id).childElements.add(child_id);
                     }
                 }
