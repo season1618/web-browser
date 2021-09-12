@@ -33,22 +33,18 @@ public class Window extends JFrame implements WindowListener, ActionListener {
 		add(tab);*/
 
 		tf = new TextField();
-		tf.setBounds(100, 0, Math.min(300, region.width - 215), 24);
-		tf.setFont(new Font("MS Gothic",Font.PLAIN,16));
+		tf.setBounds(100, 0, region.width - 200, 25);
+		tf.setFont(new Font("MS Gothic", Font.PLAIN, 16));
 		tf.addActionListener(this);
 		this.add(tf);
 
-		scrollpane = new JScrollPane();
-		scrollpane.setBounds(0, 24, this.getWidth() - 14, this.getHeight() - 60);
-		this.add(scrollpane);
-
 		textpane = new JTextPane();
+		textpane.setBounds(0, 25, this.getWidth() - 14, this.getHeight() - 60);
 		textpane.setEditable(false);
-		//textpane.addDocumentListener(this);
 
-		JViewport viewport = new JViewport();
-		viewport.setView(textpane);
-		scrollpane.setViewportView(viewport);
+		scrollpane = new JScrollPane(textpane);
+		scrollpane.setBounds(0, 25, this.getWidth() - 14, this.getHeight() - 60);
+		this.add(scrollpane);
 
 		//JEditorPane editorpane = new JEditorPane();
 		//editorpane.setEditable(false);
@@ -80,11 +76,6 @@ public class Window extends JFrame implements WindowListener, ActionListener {
 			ArrayList<Element> document = new ArrayList<Element>(Arrays.asList(new Element()));
 			Parser parser = new Parser(urlString);
 			parser.parseHTML(document, 0);
-			/*for(Element elm:document){
-				System.out.print(elm.name);
-				for(String s:elm.attributes) System.out.print(" " + s);
-				System.out.println();
-			}*/
 			Renderer renderer = new Renderer(this, textpane);
 			renderer.renderHTML(document, 0);
 		}
