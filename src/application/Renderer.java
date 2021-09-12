@@ -10,11 +10,13 @@ import javax.swing.text.*;
 public class Renderer {
     Window window;
     StyledDocument sdoc;
-    public Renderer(Window window, JTextPane textpane){
+    ArrayList<Element> document;
+    public Renderer(Window window, JTextPane textpane, ArrayList<Element> document){
         this.window = window;
         this.sdoc = textpane.getStyledDocument();
+        this.document = document;
     }
-    public void renderHTML(ArrayList<Element> document, int id, Style oldStyle){
+    public void renderHTML(int id, Style oldStyle){
         Element elm = document.get(id);
         Style newStyle = oldStyle;
         try{
@@ -50,6 +52,14 @@ public class Renderer {
                 case "h6":
                     StyleConstants.setFontSize(newStyle, 16);
                     break;
+
+                case "p":
+                    StyleConstants.setFontSize(newStyle, 16);
+                    break;
+                case "ul":
+                    StyleConstants.setFontSize(newStyle, 16);
+                    renderList(sdoc, id, 0, newStyle);
+                    return;
                 // sectioning
                 // heading
                 // phrasing
@@ -63,7 +73,33 @@ public class Renderer {
         }catch(Exception e){}
 
         for(int childElementId : elm.childElements){
-            renderHTML(document, childElementId, newStyle);
+            renderHTML(childElementId, newStyle);
+        }
+    }
+
+    private void renderList(StyledDocument sdoc, int id, int depth, Style style){
+        Element elm = document.get(id);
+        for(int childElementId : elm.childElements){
+            renderItem(sdoc, childElementId, depth + 1, style);
+        }
+    }
+    private void renderItem(StyledDocument sdoc, int id, int depth, Style style){
+        Element elm = document.get(id);
+        for(int childElementId : elm.childElements){
+            Element childElm = document.get(childElementId);
+            switch(childElm.name){
+                case "text":
+                    String s = "";
+                    for(int i = 0; i < depth; i++) s += "    ";
+                    s += "\u2022"; // bullet
+                    try{
+                        sdoc.insertString(sdoc.getLength(), s + childElm.attributes.get(0), style);
+                    }catch(BadLocationException e){}
+                    break;
+                case "ul":
+                    renderList(sdoc, childElementId, depth, style);
+                    break;
+            }
         }
     }
 }
