@@ -19,20 +19,34 @@ public class Renderer {
         this.style = sdoc.getStyle(StyleContext.DEFAULT_STYLE);
     }
     public void renderHTML(ArrayList<Element> document, int id){
-        Element elm = document.get(id);System.out.print(elm.name);
-        switch(elm.name){
-            // metadata
-            case "title":
-                String title = document.get(elm.childElements.get(0)).attributes.get(0);
-                window.setTitle(title);
-                return;
-            // flow
-            // sectioning
-            // heading
-            // phrasing
-            // embedded
-            // interactive
-        }
+        Element elm = document.get(id);
+        try{
+            switch(elm.name){
+                // metadata
+                case "title":
+                    String title = document.get(elm.childElements.get(0)).attributes.get(0);
+                    window.setTitle(title);
+                    return;
+                case "style":
+                case "script":
+                    return;
+                // flow
+                //case "a":
+                case "br":
+                    sdoc.insertString(sdoc.getLength(), "\n", style);
+                    break;
+                // sectioning
+                // heading
+                // phrasing
+                // embedded
+                // interactive
+                // text
+                case "text":
+                    sdoc.insertString(sdoc.getLength(), elm.attributes.get(0), style);
+                    break;
+            }
+        }catch(Exception e){}
+
         for(int childElementId : elm.childElements){
             renderHTML(document, childElementId);
         }
