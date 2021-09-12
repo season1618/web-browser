@@ -9,17 +9,14 @@ import javax.swing.text.*;
 
 public class Renderer {
     Window window;
-    JTextPane textpane;
     StyledDocument sdoc;
-	Style style;
     public Renderer(Window window, JTextPane textpane){
         this.window = window;
-        this.textpane = textpane;
         this.sdoc = textpane.getStyledDocument();
-        this.style = sdoc.getStyle(StyleContext.DEFAULT_STYLE);
     }
-    public void renderHTML(ArrayList<Element> document, int id){
+    public void renderHTML(ArrayList<Element> document, int id, Style oldStyle){
         Element elm = document.get(id);
+        Style newStyle = oldStyle;
         try{
             switch(elm.name){
                 // metadata
@@ -33,7 +30,25 @@ public class Renderer {
                 // flow
                 //case "a":
                 case "br":
-                    sdoc.insertString(sdoc.getLength(), "\n", style);
+                    sdoc.insertString(sdoc.getLength(), "\n", newStyle);
+                    break;
+                case "h1":
+                    StyleConstants.setFontSize(newStyle, 36);
+                    break;
+                case "h2":
+                    StyleConstants.setFontSize(newStyle, 36);
+                    break;
+                case "h3":
+                    StyleConstants.setFontSize(newStyle, 24);
+                    break;
+                case "h4":
+                    StyleConstants.setFontSize(newStyle, 16);
+                    break;
+                case "h5":
+                    StyleConstants.setFontSize(newStyle, 16);
+                    break;
+                case "h6":
+                    StyleConstants.setFontSize(newStyle, 16);
                     break;
                 // sectioning
                 // heading
@@ -42,13 +57,13 @@ public class Renderer {
                 // interactive
                 // text
                 case "text":
-                    sdoc.insertString(sdoc.getLength(), elm.attributes.get(0), style);
+                    sdoc.insertString(sdoc.getLength(), elm.attributes.get(0), newStyle);
                     break;
             }
         }catch(Exception e){}
 
         for(int childElementId : elm.childElements){
-            renderHTML(document, childElementId);
+            renderHTML(document, childElementId, newStyle);
         }
     }
 }
