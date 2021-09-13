@@ -1,6 +1,7 @@
 package application;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import java.awt.*;
 import java.awt.event.*;
@@ -11,6 +12,9 @@ public class Renderer {
     Window window;
     StyledDocument sdoc;
     ArrayList<Element> document;
+    ArrayList<String> blockLevelElementList = new ArrayList<String>(
+        Arrays.asList("div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "p", "ul")
+    );
     public Renderer(Window window, JTextPane textpane, ArrayList<Element> document){
         this.window = window;
         this.sdoc = textpane.getStyledDocument();
@@ -58,7 +62,7 @@ public class Renderer {
                     break;
                 case "ul":
                     StyleConstants.setFontSize(newStyle, 16);
-                    renderList(sdoc, id, 0, newStyle);
+                    renderList(id, 0, newStyle);
                     return;
                 // sectioning
                 // heading
@@ -75,31 +79,51 @@ public class Renderer {
         for(int childElementId : elm.childElements){
             renderHTML(childElementId, newStyle);
         }
+
+        try{
+            if(blockLevelElementList.contains(elm.name)){
+                sdoc.insertString(sdoc.getLength(), "\n", newStyle);
+            }
+        }catch(BadLocationException e){}
     }
 
-    private void renderList(StyledDocument sdoc, int id, int depth, Style style){
+    private void renderList(int id, int depth, Style style){
         Element elm = document.get(id);
+        try{
+            sdoc.insertString(sdoc.getLength(), "\n", style);
+        }catch(BadLocationException e){}
         for(int childElementId : elm.childElements){
-            renderItem(sdoc, childElementId, depth + 1, style);
+            Element e = document.get(childElementId);
+            System.out.print(e.name);
+            for(String a : e.attributes) System.out.print(" a" + a + "a");
+            System.out.print("\n");
+            renderItem(childElementId, depth + 1, style);
         }
+        try{
+            sdoc.insertString(sdoc.getLength(), "\n", style);
+        }catch(BadLocationException e){}
     }
-    private void renderItem(StyledDocument sdoc, int id, int depth, Style style){
+    private void renderItem(int id, int depth, Style style){
         Element elm = document.get(id);
         for(int childElementId : elm.childElements){
             Element childElm = document.get(childElementId);
             switch(childElm.name){
-                case "text":
+                case "ul":
+                    renderList(childElementId, depth, style);
+                    break;
+                default:
                     String s = "";
                     for(int i = 0; i < depth; i++) s += "    ";
                     s += "\u2022"; // bullet
                     try{
-                        sdoc.insertString(sdoc.getLength(), s + childElm.attributes.get(0), style);
+                        sdoc.insertString(sdoc.getLength(), s, style);
                     }catch(BadLocationException e){}
-                    break;
-                case "ul":
-                    renderList(sdoc, childElementId, depth, style);
+                    renderHTML(childElementId, style);
                     break;
             }
         }
+        try{
+            sdoc.insertString(sdoc.getLength(), "\n", style);
+        }catch(BadLocationException e){}
     }
 }
