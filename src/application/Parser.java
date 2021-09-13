@@ -30,7 +30,7 @@ public class Parser {
     }
     public void parseHTML(ArrayList<Element> document, int id){
         try{
-            int i; char c; int count = 1000;
+            int i; char c; int count = 10000;
             while(count-- > 0){
                 i = isr.read();
                 if(i == -1) break;
@@ -48,8 +48,11 @@ public class Parser {
                 }else{ // text
                     int n = document.size();
                     if(document.get(n-1).name.equals("text")){
-                        document.get(n-1).attributes.set(0, document.get(n-1).attributes.get(0).concat(String.valueOf(c)));
-                    }else if(c != '\n'){
+                        String s = document.get(n-1).attributes.get(0);
+                        if(c == '\n');
+                        else if(c == ' ' && s.charAt(s.length()-1) == ' ');
+                        else document.get(n-1).attributes.set(0, document.get(n-1).attributes.get(0).concat(String.valueOf(c)));
+                    }else if(c != '\n' && c != ' '){
                         int child_id = document.size();
                         document.add(new Element("text", String.valueOf(c)));
                         document.get(id).childElements.add(child_id);
