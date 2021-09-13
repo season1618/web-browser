@@ -99,31 +99,33 @@ public class Renderer {
             System.out.print("\n");
             renderItem(childElementId, depth + 1, style);
         }
-        try{
-            sdoc.insertString(sdoc.getLength(), "\n", style);
-        }catch(BadLocationException e){}
     }
     private void renderItem(int id, int depth, Style style){
         Element elm = document.get(id);
+        String s = "";
+        for(int i = 0; i < depth; i++) s += "    ";
+        s += "\u2022"; // bullet
+        try{
+            sdoc.insertString(sdoc.getLength(), s, style);
+        }catch(BadLocationException e){}
+
+        boolean isLineFeed = true;
         for(int childElementId : elm.childElements){
             Element childElm = document.get(childElementId);
             switch(childElm.name){
                 case "ul":
+                    isLineFeed = false;
                     renderList(childElementId, depth, style);
                     break;
                 default:
-                    String s = "";
-                    for(int i = 0; i < depth; i++) s += "    ";
-                    s += "\u2022"; // bullet
-                    try{
-                        sdoc.insertString(sdoc.getLength(), s, style);
-                    }catch(BadLocationException e){}
                     renderHTML(childElementId, style);
                     break;
             }
         }
-        try{
-            sdoc.insertString(sdoc.getLength(), "\n", style);
-        }catch(BadLocationException e){}
+        if(isLineFeed){
+            try{
+                sdoc.insertString(sdoc.getLength(), "\n", style);
+            }catch(BadLocationException e){}
+        }
     }
 }
