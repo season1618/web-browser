@@ -76,8 +76,9 @@ public class Window extends JFrame implements WindowListener, ActionListener {
 			ArrayList<Element> document = new ArrayList<Element>(Arrays.asList(new Element()));
 			Parser parser = new Parser(urlString);
 			parser.parseHTML(document, 0);
-			Renderer renderer = new Renderer(this, textpane);
-			renderer.renderHTML(document, 0);
+			Renderer renderer = new Renderer(this, textpane, document);
+			Style style = renderer.sdoc.getStyle(StyleContext.DEFAULT_STYLE);
+			renderer.renderHTML(0, style);
 		}
 	}
 }
